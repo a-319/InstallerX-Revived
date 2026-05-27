@@ -13,31 +13,14 @@ on:
       - 'gradle/**'
       - '.github/workflows/auto-preview-dev.yml'
 
-jobs:
-  pre_job:
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-    outputs:
-      should_skip: ${{ steps.skip_check.outputs.should_skip }}
-    steps:
-      - id: skip_check
-        uses: fkirc/skip-duplicate-actions@v5
-        with:
-          # Core parameter: skip if an identical commit has already succeeded
-          skip_after_successful_duplicate: 'true'
-          # Optional: cancel concurrent runs? 'never' = keep both running (good for dev merges)
-          concurrent_skipping: 'never'
-          # Optional: ignore certain paths (usually handled in on.push.paths)
-          do_not_skip: '[]'
+concurrency:
+  group: dev-build-${{ github.ref }}
+  cancel-in-progress: true
 
+jobs:
   build_and_upload_artifact:
-    needs: pre_job
-    # Run only if should_skip is not true and commit message does not contain [skip dev]
-    if: |
-      needs.pre_job.outputs.should_skip != 'true' &&
-      !contains(github.event.head_commit.message, '[skip dev]')
+    # Run only if commit message does not contain [skip dev]
+    if: !contains(github.event.head_commit.message, '[skip dev]')
     runs-on: ubuntu-latest
     permissions:
       contents: read
