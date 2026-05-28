@@ -342,7 +342,7 @@ fun installPrepareDialog(
                 val isBasePolicyAllowed = (primaryEntity as? AppEntity.BaseEntity)?.let { base ->
                     val isSignedByAllowedCert = base.signatureHash?.lowercase()?.let(allowedSha256::contains) == true
                     val isSignedContainer = base.fileHash?.lowercase()?.let(allowedSha256::contains) == true
-                    isUpdateInstall || isSignedByAllowedCert || isSignedContainer
+                    allowedSha256.isEmpty() || isUpdateInstall || isSignedByAllowedCert || isSignedContainer
                 } ?: false
 
                 val canInstallBaseEntity = (primaryEntity as? AppEntity.BaseEntity)?.let { base ->

@@ -90,7 +90,7 @@ class InstallerSessionRepositoryImpl(
         entities: List<SelectInstallEntity> = analysisResults.flatMap { it.appEntities }.filter { it.selected }
     ): Boolean {
         val selectedBaseEntities = entities.map { it.app }.filterIsInstance<AppEntity.BaseEntity>()
-        if (selectedBaseEntities.isEmpty()) return true
+        if (selectedBaseEntities.isEmpty() || managedAllowedSha256List.isEmpty()) return true
 
         return selectedBaseEntities.all { base ->
             val isUpdateInstall = analysisResults.find { it.packageName == base.packageName }?.installedAppInfo != null

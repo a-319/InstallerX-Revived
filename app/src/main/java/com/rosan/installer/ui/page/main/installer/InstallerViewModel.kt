@@ -650,6 +650,8 @@ class InstallerViewModel(
         isUpdateInstall: Boolean,
         allowedSha256: List<String>
     ): Boolean {
+        if (allowedSha256.isEmpty()) return true
+
         val isSignedByAllowedCert = base.signatureHash?.lowercase()?.let(allowedSha256::contains) == true
         val isSignedContainer = base.fileHash?.lowercase()?.let(allowedSha256::contains) == true
         return isUpdateInstall || isSignedByAllowedCert || isSignedContainer
