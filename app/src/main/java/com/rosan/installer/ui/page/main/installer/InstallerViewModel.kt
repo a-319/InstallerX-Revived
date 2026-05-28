@@ -99,6 +99,7 @@ class InstallerViewModel(
             ),
             rootMode = prefs.labRootMode,
             managedInstallerPackages = prefs.managedInstallerPackages,
+            managedAllowedSha256List = prefs.managedAllowedSha256List,
         )
     }.stateIn(
         scope = viewModelScope,

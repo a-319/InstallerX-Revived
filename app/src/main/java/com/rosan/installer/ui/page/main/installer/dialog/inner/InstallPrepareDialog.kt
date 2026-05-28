@@ -337,14 +337,21 @@ fun installPrepareDialog(
                 val isAPK =
                     containerType == DataType.APKS || containerType == DataType.XAPK || containerType == DataType.APKM || containerType == DataType.MIXED_MODULE_APK
 
+                val isUpdateInstall = currentPackage.installedAppInfo != null
+                val allowedSha256 = uiState.managedAllowedSha256List
+                val isBasePolicyAllowed = (primaryEntity as? AppEntity.BaseEntity)?.let { base ->
+                    val isSignedByAllowedCert = base.signatureHash?.lowercase()?.let(allowedSha256::contains) == true
+                    val isSignedContainer = base.fileHash?.lowercase()?.let(allowedSha256::contains) == true
+                    isUpdateInstall || isSignedByAllowedCert || isSignedContainer
+                } ?: false
+
                 val canInstallBaseEntity = (primaryEntity as? AppEntity.BaseEntity)?.let { base ->
-                    if (entityToInstall != null) {
-                        // Installing Base: Check SDK
+                    val sdkAllowed = if (entityToInstall != null) {
                         base.minSdk?.toIntOrNull()?.let { sdk -> sdk <= Build.VERSION.SDK_INT } ?: true
                     } else {
-                        // Bundle Split Update: Allowed if installed
                         isSplitUpdateMode
                     }
+                    sdkAllowed && isBasePolicyAllowed
                 } ?: false
 
                 val canInstallModuleEntity = (primaryEntity as? AppEntity.ModuleEntity)?.let {
