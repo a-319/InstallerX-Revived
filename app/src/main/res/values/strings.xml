@@ -292,6 +292,8 @@
     <string name="config_no_managed_shared_user_id_exempted_packages">Exempted Apps List</string>
     <string name="config_no_managed_shared_user_id_no_exempted_packages">No Exempted Apps</string>
     <string name="config_managed_packages_desc">Add or remove managed packages</string>
+    <string name="managed_allowed_sha256_list_title">Allowed SHA-256 hashes</string>
+    <string name="managed_allowed_sha256_list_desc">Comma-separated SHA-256 hashes allowed for app signer certificates or signed containers</string>
     <string name="config_add_one_to_get_started">Click \'Add\' below to start</string>
     <string name="config_add_new_package">Add new package</string>
     <string name="config_package_name">Package Name</string>

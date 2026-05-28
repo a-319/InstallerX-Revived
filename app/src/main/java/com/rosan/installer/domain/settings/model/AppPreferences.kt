@@ -37,6 +37,7 @@ data class AppPreferences(
     val managedBlacklistPackages: List<NamedPackage>,
     val managedSharedUserIdBlacklist: List<SharedUid>,
     val managedSharedUserIdExemptedPackages: List<NamedPackage>,
+    val managedAllowedSha256List: List<String>,
     val uninstallFlags: Int,
     // Lab Settings
     val githubUpdateChannel: GithubUpdateChannel,

@@ -99,6 +99,7 @@ class InstallerViewModel(
             ),
             rootMode = prefs.labRootMode,
             managedInstallerPackages = prefs.managedInstallerPackages,
+            managedAllowedSha256List = prefs.managedAllowedSha256List,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -330,7 +331,7 @@ class InstallerViewModel(
 
                         is ProgressEntity.UninstallSuccess -> {
                             isRetryingInstall = false
-                            session.install(false)
+                            startInstall(triggerAuth = false)
                         }
 
                         else -> {}
@@ -601,10 +602,57 @@ class InstallerViewModel(
         } else toast(R.string.error_dialog_install_menu_not_available)
     }
 
-    private fun install() {
+    private fun install() = startInstall(triggerAuth = true)
+
+    private fun startInstall(triggerAuth: Boolean) {
         autoInstallJob?.cancel()
+        if (!canInstallSelectedEntities()) {
+            Timber.w("Install blocked by managed SHA-256 policy or unsupported selection")
+            toast(R.string.exception_install_failed_blacklisted_package)
+            return
+        }
         Timber.d("Standard foreground installation triggered. Contains Module: $isInstallingModule")
-        session.install(true)
+        session.install(triggerAuth)
+    }
+
+    private fun canInstallSelectedEntities(): Boolean {
+        val state = uiState.value
+        val allowedSha256 = state.managedAllowedSha256List
+        val selectedByPackage = state.analysisResults.associateWith { result ->
+            result.appEntities.filter { it.selected }.map { it.app }
+        }.filterValues { it.isNotEmpty() }
+
+        if (selectedByPackage.isEmpty()) return false
+
+        return selectedByPackage.all { (result, selectedApps) ->
+            val isUpdateInstall = result.installedAppInfo != null
+            val selectedBaseEntities = selectedApps.filterIsInstance<AppEntity.BaseEntity>()
+            val selectedModuleEntities = selectedApps.filterIsInstance<AppEntity.ModuleEntity>()
+            val selectedSplitEntities = selectedApps.filterIsInstance<AppEntity.SplitEntity>()
+
+            when {
+                selectedBaseEntities.isNotEmpty() -> selectedBaseEntities.all { base ->
+                    val sdkAllowed = base.minSdk?.toIntOrNull()?.let { sdk -> sdk <= Build.VERSION.SDK_INT } ?: true
+                    sdkAllowed && isBaseEntityAllowedByManagedSha256Policy(base, isUpdateInstall, allowedSha256)
+                }
+
+                selectedModuleEntities.isNotEmpty() -> state.viewSettings.enableModuleInstall
+
+                selectedSplitEntities.isNotEmpty() -> isUpdateInstall
+
+                else -> false
+            }
+        }
+    }
+
+    private fun isBaseEntityAllowedByManagedSha256Policy(
+        base: AppEntity.BaseEntity,
+        isUpdateInstall: Boolean,
+        allowedSha256: List<String>
+    ): Boolean {
+        val isSignedByAllowedCert = base.signatureHash?.lowercase()?.let(allowedSha256::contains) == true
+        val isSignedContainer = base.fileHash?.lowercase()?.let(allowedSha256::contains) == true
+        return isUpdateInstall || isSignedByAllowedCert || isSignedContainer
     }
 
     private fun background() = session.background(true)

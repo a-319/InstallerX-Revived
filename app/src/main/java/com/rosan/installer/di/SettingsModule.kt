@@ -73,6 +73,7 @@ val settingsModule = module {
     single<AppSettingsRepository> {
         AppSettingsRepositoryImpl(
             appDataStore = get(),
+            context = androidContext(),
             capabilityProvider = get(),
             appScope = get(named("AppScope"))
         )

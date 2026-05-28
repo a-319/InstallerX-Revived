@@ -11,6 +11,7 @@ import com.rosan.installer.framework.notification.SessionNotifierImpl
 import org.koin.core.module.dsl.bind
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val installerModule = module {
@@ -20,7 +21,9 @@ val installerModule = module {
     factory<InstallerSessionRepository> { (id: String, onClose: () -> Unit) ->
         InstallerSessionRepositoryImpl(
             id = id,
-            onClose = onClose
+            onClose = onClose,
+            appSettingsRepository = get(),
+            appScope = get(named("AppScope"))
         )
     }
     factoryOf(::ConfigResolver)

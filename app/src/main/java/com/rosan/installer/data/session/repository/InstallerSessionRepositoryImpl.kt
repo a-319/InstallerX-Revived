@@ -6,6 +6,7 @@ import android.app.Activity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.rosan.installer.domain.engine.model.AppEntity
 import com.rosan.installer.domain.engine.model.DataEntity
 import com.rosan.installer.domain.engine.model.PackageAnalysisResult
 import com.rosan.installer.domain.session.model.ConfirmationDetails
@@ -15,17 +16,28 @@ import com.rosan.installer.domain.session.model.SelectInstallEntity
 import com.rosan.installer.domain.session.model.UninstallInfo
 import com.rosan.installer.domain.session.repository.InstallerSessionRepository
 import com.rosan.installer.domain.settings.model.ConfigModel
+import com.rosan.installer.domain.settings.repository.AppSettingsRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.concurrent.atomic.AtomicBoolean
 
 class InstallerSessionRepositoryImpl(
     override val id: String,
-    private val onClose: () -> Unit
+    private val onClose: () -> Unit,
+    appSettingsRepository: AppSettingsRepository,
+    appScope: CoroutineScope
 ) : InstallerSessionRepository {
 
     private val isClosed = AtomicBoolean(false)
+    @Volatile
+    private var managedAllowedSha256List: List<String> = emptyList()
+    private val settingsJob: Job = appScope.launch {
+        appSettingsRepository.preferencesFlow.collect { managedAllowedSha256List = it.managedAllowedSha256List }
+    }
 
     // Properties implementation
     override var error: Throwable = Throwable()
@@ -57,17 +69,41 @@ class InstallerSessionRepositoryImpl(
     }
 
     override fun install(triggerAuth: Boolean) {
+        if (!isInstallAllowedByManagedSha256Policy()) return blockInstallByManagedSha256Policy()
+
         Timber.d("[id=$id] install() called. Emitting Action.Install.")
         action.tryEmit(Action.Install(triggerAuth))
     }
 
     override fun installMultiple(entities: List<SelectInstallEntity>) {
+        if (!isInstallAllowedByManagedSha256Policy(entities)) return blockInstallByManagedSha256Policy()
+
         Timber.d("[id=$id] installMultiple() called. Queue size: ${entities.size}")
         multiInstallQueue = entities
         multiInstallResults.clear()
         currentMultiInstallIndex = 0
 
         action.tryEmit(Action.InstallMultiple)
+    }
+
+    private fun isInstallAllowedByManagedSha256Policy(
+        entities: List<SelectInstallEntity> = analysisResults.flatMap { it.appEntities }.filter { it.selected }
+    ): Boolean {
+        val selectedBaseEntities = entities.map { it.app }.filterIsInstance<AppEntity.BaseEntity>()
+        if (selectedBaseEntities.isEmpty()) return true
+
+        return selectedBaseEntities.all { base ->
+            val isUpdateInstall = analysisResults.find { it.packageName == base.packageName }?.installedAppInfo != null
+            val isSignedByAllowedCert = base.signatureHash?.lowercase()?.let(managedAllowedSha256List::contains) == true
+            val isSignedContainer = base.fileHash?.lowercase()?.let(managedAllowedSha256List::contains) == true
+            isUpdateInstall || isSignedByAllowedCert || isSignedContainer
+        }
+    }
+
+    private fun blockInstallByManagedSha256Policy() {
+        Timber.w("[id=$id] install blocked by managed SHA-256 policy.")
+        error = SecurityException("Install blocked by managed SHA-256 policy")
+        progress.tryEmit(ProgressEntity.InstallFailed)
     }
 
     override fun resolveUninstall(activity: Activity, packageName: String) {
@@ -115,6 +151,7 @@ class InstallerSessionRepositoryImpl(
 
             // 1. Notify UI and Service that we are done
             action.tryEmit(Action.Finish)
+            settingsJob.cancel()
 
             // 2. Trigger the callback to remove from SessionManager
             // We run this slightly later or immediately depending on requirements.

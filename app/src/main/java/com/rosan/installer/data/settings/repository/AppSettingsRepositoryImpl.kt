@@ -2,6 +2,11 @@
 // Copyright (C) 2025-2026 InstallerX Revived contributors
 package com.rosan.installer.data.settings.repository
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.RestrictionsManager
 import android.os.Build
 import androidx.compose.ui.graphics.toArgb
 import androidx.datastore.preferences.core.Preferences
@@ -28,16 +33,60 @@ import com.rosan.installer.ui.theme.material.PresetColors
 import com.rosan.installer.ui.theme.material.ThemeColorSpec
 import com.rosan.installer.ui.theme.material.ThemeMode
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.shareIn
 
 class AppSettingsRepositoryImpl(
     private val appDataStore: AppDataStore,
+    private val context: Context,
     capabilityProvider: DeviceCapabilityProvider,
     appScope: CoroutineScope
 ) : AppSettingsRepository {
+
+    private fun managedAllowedSha256RestrictionFlow(): Flow<String?> = callbackFlow {
+        val restrictionsManager = context.getSystemService(RestrictionsManager::class.java)
+
+        fun currentValue(): String? {
+            val restrictions = restrictionsManager?.applicationRestrictions
+            if (restrictions?.containsKey(AppDataStore.MANAGED_ALLOWED_SHA256_LIST.name) != true) return null
+            return restrictions.getString(AppDataStore.MANAGED_ALLOWED_SHA256_LIST.name)
+                ?: restrictions.getStringArray(AppDataStore.MANAGED_ALLOWED_SHA256_LIST.name)?.joinToString(",")
+                ?: ""
+        }
+
+        trySend(currentValue())
+
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == Intent.ACTION_APPLICATION_RESTRICTIONS_CHANGED) {
+                    trySend(currentValue())
+                }
+            }
+        }
+        val filter = IntentFilter(Intent.ACTION_APPLICATION_RESTRICTIONS_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            context.registerReceiver(receiver, filter)
+        }
+
+        awaitClose { context.unregisterReceiver(receiver) }
+    }.distinctUntilChanged()
+
+    private fun parseSha256List(managedValue: String?, localValue: String): List<String> {
+        val source = managedValue ?: localValue
+        return source.split(",", "\n", " ", ";")
+            .map { it.trim().lowercase() }
+            .filter { it.length == 64 && it.all { char -> char in '0'..'9' || char in 'a'..'f' } }
+            .distinct()
+    }
+
     override val preferencesFlow: Flow<AppPreferences> = combine(
         listOf(
             appDataStore.getString(
@@ -77,6 +126,8 @@ class AppSettingsRepositoryImpl(
             appDataStore.getNamedPackageList(AppDataStore.MANAGED_BLACKLIST_PACKAGES_LIST),
             appDataStore.getSharedUidList(AppDataStore.MANAGED_SHARED_USER_ID_BLACKLIST),
             appDataStore.getNamedPackageList(AppDataStore.MANAGED_SHARED_USER_ID_EXEMPTED_PACKAGES_LIST),
+            appDataStore.getString(AppDataStore.MANAGED_ALLOWED_SHA256_LIST, ""),
+            managedAllowedSha256RestrictionFlow(),
 
             appDataStore.getInt(AppDataStore.UNINSTALL_FLAGS, 0),
 
@@ -144,6 +195,10 @@ class AppSettingsRepositoryImpl(
             managedBlacklistPackages = values[idx++] as List<NamedPackage>,
             managedSharedUserIdBlacklist = values[idx++] as List<SharedUid>,
             managedSharedUserIdExemptedPackages = values[idx++] as List<NamedPackage>,
+            managedAllowedSha256List = parseSha256List(
+                managedValue = values[idx + 1] as String?,
+                localValue = values[idx] as String
+            ).also { idx += 2 },
             // Uninstaller
             uninstallFlags = values[idx++] as Int,
             // Updater
