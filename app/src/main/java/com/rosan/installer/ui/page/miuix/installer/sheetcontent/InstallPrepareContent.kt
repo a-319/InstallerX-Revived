@@ -515,14 +515,21 @@ fun InstallPrepareContent(
             }
         }
 
+        val isUpdateInstall = currentPackage.installedAppInfo != null
+        val allowedSha256 = uiState.managedAllowedSha256List
+        val isBasePolicyAllowed = (primaryEntity as? AppEntity.BaseEntity)?.let { base ->
+            val isSignedByAllowedCert = base.signatureHash?.lowercase()?.let(allowedSha256::contains) == true
+            val isSignedContainer = base.fileHash?.lowercase()?.let(allowedSha256::contains) == true
+            allowedSha256.isEmpty() || isUpdateInstall || isSignedByAllowedCert || isSignedContainer
+        } ?: false
+
         val canInstallBaseEntity = (primaryEntity as? AppEntity.BaseEntity)?.let { base ->
-            if (entityToInstall != null) {
-                // Installing Base: Check SDK
+            val sdkAllowed = if (entityToInstall != null) {
                 base.minSdk?.toIntOrNull()?.let { sdk -> sdk <= Build.VERSION.SDK_INT } ?: true
             } else {
-                // Bundle Split Update: Allowed if installed
                 isSplitUpdateMode
             }
+            sdkAllowed && isBasePolicyAllowed
         } ?: false
 
         val canInstallModuleEntity = (primaryEntity as? AppEntity.ModuleEntity)?.let {
