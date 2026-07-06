@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<restrictions xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        SHA-256 hashes of authorized signing certificates, separated by commas,
+        semicolons or whitespace ("AA:BB:..." colon format is also accepted).
+        When non-empty, the installer only allows:
+          1. APKs signed with one of these certificates,
+          2. packages delivered inside a ZIP whose JAR signature (jarsigner)
+             verifies against one of these certificates,
+          3. updates to apps already installed on the device.
+        When empty or absent, installation is unrestricted.
+    -->
+    <restriction
+        android:key="allowed_install_signatures"
+        android:restrictionType="string"
+        android:title="@string/restriction_allowed_signatures_title"
+        android:description="@string/restriction_allowed_signatures_description"
+        android:defaultValue="" />
+
+</restrictions>

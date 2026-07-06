@@ -31,7 +31,8 @@ class ProcessInstallationUseCase(
     private val appSettingsRepo: AppSettingsRepository,
     private val appInstaller: AppInstallerRepository,
     private val moduleInstaller: ModuleInstallerRepository,
-    private val capabilityProvider: DeviceCapabilityProvider
+    private val capabilityProvider: DeviceCapabilityProvider,
+    private val enforceSignaturePolicy: EnforceInstallSignaturePolicyUseCase
 ) {
     companion object {
         private const val MODULE_INSTALL_BANNER = """
@@ -63,6 +64,9 @@ class ProcessInstallationUseCase(
             Timber.w("ProcessInstallationUseCase: No entities selected for installation.")
             throw IllegalStateException("No items selected")
         }
+
+        // Managed device policy gate: throws when any selected package is not authorized.
+        enforceSignaturePolicy(selected.map { it.app })
 
         val firstApp = selected.first().app
 
