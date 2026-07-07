@@ -8,8 +8,8 @@ import com.rosan.installer.domain.settings.model.Authorizer
 object AuthorizerConverter {
     @TypeConverter
     fun revert(value: String?): Authorizer {
-        if (value == null) return Authorizer.Shizuku
-        return Authorizer.entries.find { it.value == value } ?: Authorizer.Shizuku
+        if (value == null) return Authorizer.Dhizuku
+        return Authorizer.entries.find { it.value == value } ?: Authorizer.Dhizuku
     }
 
     @TypeConverter
