@@ -3,7 +3,7 @@ package com.rosan.installer.ui.page.main.settings.preferred
 import com.rosan.installer.domain.settings.model.Authorizer
 
 data class PreferredViewState(
-    val authorizer: Authorizer = Authorizer.Shizuku,
+    val authorizer: Authorizer = Authorizer.Dhizuku,
     val customizeAuthorizer: String = "",
     val adbVerifyEnabled: Boolean = true,
     val isIgnoringBatteryOptimizations: Boolean = false,
