@@ -61,6 +61,10 @@
         android:enableOnBackInvokedCallback="true"
         tools:targetApi="37">
 
+        <meta-data
+            android:name="android.content.APP_RESTRICTIONS"
+            android:resource="@xml/app_restrictions" />
+
         <activity
             android:name="com.rosan.installer.ui.activity.SettingsActivity"
             android:exported="true"

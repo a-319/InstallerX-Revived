@@ -23,6 +23,7 @@ import com.rosan.installer.domain.engine.usecase.AnalyzeInstallStateUseCase
 import com.rosan.installer.domain.engine.usecase.AnalyzePackageUseCase
 import com.rosan.installer.domain.engine.usecase.ApproveSessionUseCase
 import com.rosan.installer.domain.engine.usecase.ClearAppIconCacheUseCase
+import com.rosan.installer.domain.engine.usecase.EnforceInstallSignaturePolicyUseCase
 import com.rosan.installer.domain.engine.usecase.GetAppIconColorUseCase
 import com.rosan.installer.domain.engine.usecase.GetAppIconUseCase
 import com.rosan.installer.domain.engine.usecase.GetAppLabelUseCase
@@ -61,6 +62,7 @@ val engineModule = module {
     factoryOf(::AnalyzePackageUseCase)
     factoryOf(::ApproveSessionUseCase)
     factoryOf(::GetSessionConfirmationDetailsUseCase)
+    factoryOf(::EnforceInstallSignaturePolicyUseCase)
     factoryOf(::ProcessInstallationUseCase)
     factoryOf(::ProcessUninstallUseCase)
     factoryOf(::SelectOptimalSplitsUseCase)
