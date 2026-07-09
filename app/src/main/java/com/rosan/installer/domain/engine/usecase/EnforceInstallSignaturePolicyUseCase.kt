@@ -26,7 +26,14 @@ import java.util.UUID
  *  1. Its base APK is signed with an authorized certificate.
  *  2. It comes from a ZIP container whose JAR signature is fully verified against an
  *     authorized certificate (regardless of the APK's own signer).
- *  3. It is an update to an application that is already installed on the device.
+ *  3. It is a genuine update to an application that is already installed on the
+ *     device: the incoming base APK must be signed with the same certificate as the
+ *     installed app. A same-package APK with a mismatched signer is NOT an update —
+ *     letting it through would fail in PackageManager and surface the
+ *     "uninstall and retry" suggestion, uninstalling the legitimate app.
+ *
+ * The policy is re-evaluated on every install attempt against the current device
+ * state, so retry flows (e.g. after an uninstall) cannot bypass it.
  *
  * When no policy is configured (unmanaged device / empty restriction), installation
  * is unrestricted.
@@ -65,17 +72,34 @@ class EnforceInstallSignaturePolicyUseCase(private val context: Context) {
             return areContainersAuthorized(entities, allowedHashes, containerCache)
         }
 
-        // Rule 3: update of an app that is already installed on this device.
-        if (isPackageInstalled(packageName)) {
-            Timber.d("Policy: $packageName allowed as update to installed app")
-            return true
+        val installed = isPackageInstalled(packageName)
+        val baseEntities = entities.filterIsInstance<AppEntity.BaseEntity>()
+
+        // Rule 3 (splits-only case): adding splits/dex-metadata to an installed app is
+        // always a genuine update; PackageManager enforces they match the installed
+        // base signature.
+        if (baseEntities.isEmpty()) {
+            if (installed) {
+                Timber.d("Policy: $packageName allowed as splits-only update to installed app")
+            }
+            return installed ||
+                    areContainersAuthorized(entities, allowedHashes, containerCache)
         }
 
-        // Rule 1: base APK signed with an authorized certificate.
-        val baseEntity = entities.filterIsInstance<AppEntity.BaseEntity>().firstOrNull()
-        val apkCertHash = baseEntity?.signatureHash ?: baseEntity?.let { resolveApkCertHash(it.data) }
-        if (apkCertHash != null && apkCertHash.lowercase() in allowedHashes) {
-            Timber.d("Policy: $packageName allowed by authorized APK signature")
+        // The installed app's signing certificate, for the genuine-update comparison.
+        val installedCertHash = if (installed) {
+            SignatureUtils.getInstalledAppSignatureHash(context, packageName)?.lowercase()
+        } else null
+
+        // Rules 1 + 3: every selected base APK must either be signed with an authorized
+        // certificate, or be signed with the same certificate as the installed app.
+        // An unresolvable signature never qualifies.
+        val allBasesAuthorized = baseEntities.all { base ->
+            val hash = (base.signatureHash ?: resolveApkCertHash(base.data))?.lowercase()
+            hash != null && (hash in allowedHashes || (installedCertHash != null && hash == installedCertHash))
+        }
+        if (allBasesAuthorized) {
+            Timber.d("Policy: $packageName allowed by authorized or installed-matching APK signature")
             return true
         }
 

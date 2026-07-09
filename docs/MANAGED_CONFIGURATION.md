@@ -30,10 +30,17 @@ installer only permits a package when **one** of the following holds:
    partially signed archives are rejected. Magisk/KernelSU module ZIPs are only
    allowed through this rule.
 3. **Update to an installed app** — the package name is already installed on
-   the device (Android itself additionally enforces that updates match the
-   installed app's signature).
+   the device **and** the incoming APK is signed with the same certificate as
+   the installed app. A same-package APK with a different signer is rejected
+   up front (it could never install as an update anyway, and rejecting it
+   early prevents the "uninstall and retry" suggestion from uninstalling the
+   legitimate app).
 
 Anything else fails with an "Installation blocked by managed policy" error.
+The policy is re-evaluated on every install attempt against the current device
+state, so retry flows — including "uninstall and retry" after a failed
+install — pass through the same gate: once the old app is uninstalled, an
+unauthorized-signature APK is still blocked.
 
 When the restriction is empty or absent (e.g. on unmanaged devices), no
 restriction is applied and the installer behaves normally.
