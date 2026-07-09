@@ -38,27 +38,27 @@ jobs:
 
       - name: Verify Keystore
         run: |
-          if [ -z "${{ secrets.SIGNING_KEY_STORE_BASE64 }}" ]; then
-            echo "ERROR: SIGNING_KEY_STORE_BASE64 secret is missing"
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "ERROR: KEYSTORE_BASE64 secret is missing"
             exit 1
           fi
 
       - name: Setup Signing Keys
         env:
-          SIGNING_KEY_STORE_BASE64: ${{ secrets.SIGNING_KEY_STORE_BASE64 }}
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -z "${SIGNING_STORE_PASSWORD:-}" ] || [ -z "${SIGNING_KEY_STORE_BASE64:-}" ] || [ -z "${SIGNING_KEY_PASSWORD:-}" ] || [ -z "${SIGNING_KEY_ALIAS:-}" ]; then
+          if [ -z "${STORE_PASSWORD:-}" ] || [ -z "${KEYSTORE_BASE64:-}" ] || [ -z "${KEY_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ]; then
             exit 0
           fi
           mkdir -p keystore
-          echo "${SIGNING_KEY_STORE_BASE64}" | base64 --decode > keystore/carlyu.jks
+          echo "${KEYSTORE_BASE64}" | base64 --decode > keystore/carlyu.jks
           echo "storeFile=keystore/carlyu.jks" > keystore.properties
-          echo "keyAlias=${SIGNING_KEY_ALIAS}" >> keystore.properties
-          echo "keyPassword=${SIGNING_KEY_PASSWORD}" >> keystore.properties
-          echo "storePassword=${SIGNING_STORE_PASSWORD}" >> keystore.properties
+          echo "keyAlias=${KEY_ALIAS}" >> keystore.properties
+          echo "keyPassword=${KEY_PASSWORD}" >> keystore.properties
+          echo "storePassword=${STORE_PASSWORD}" >> keystore.properties
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
