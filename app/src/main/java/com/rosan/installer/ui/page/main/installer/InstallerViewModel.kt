@@ -99,6 +99,7 @@ class InstallerViewModel(
             ),
             rootMode = prefs.labRootMode,
             managedInstallerPackages = prefs.managedInstallerPackages,
+            managedAllowedSha256List = prefs.managedAllowedSha256List,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -603,8 +604,30 @@ class InstallerViewModel(
 
     private fun install() {
         autoInstallJob?.cancel()
+        if (!isInstallAllowedByManagedShaPolicy()) {
+            toast(R.string.exception_install_failed_blacklisted_package)
+            return
+        }
         Timber.d("Standard foreground installation triggered. Contains Module: $isInstallingModule")
         session.install(true)
+    }
+
+    private fun isInstallAllowedByManagedShaPolicy(): Boolean {
+        val currentPackage = _localState.value.analysisResults.find { it.packageName == _localState.value.currentPackageName } ?: return true
+        val selectedEntities = currentPackage.appEntities.filter { it.selected }.map { it.app }
+        if (selectedEntities.isEmpty()) return true
+
+        val primaryEntity = selectedEntities.filterIsInstance<AppEntity.BaseEntity>().firstOrNull()
+            ?: selectedEntities.filterIsInstance<AppEntity.ModuleEntity>().firstOrNull()
+            ?: selectedEntities.firstOrNull()
+
+        val baseEntity = primaryEntity as? AppEntity.BaseEntity ?: return true
+        val isUpdateInstall = currentPackage.installedAppInfo != null
+        val allowedSha256 = uiState.value.managedAllowedSha256List
+
+        val isSignedByAllowedCert = baseEntity.signatureHash?.lowercase()?.let(allowedSha256::contains) == true
+        val isSignedContainer = baseEntity.fileHash?.lowercase()?.let(allowedSha256::contains) == true
+        return isUpdateInstall || isSignedByAllowedCert || isSignedContainer
     }
 
     private fun background() = session.background(true)

@@ -110,6 +110,8 @@ class AppDataStore(
             stringPreferencesKey("managed_shared_user_id_blacklist")
         val MANAGED_SHARED_USER_ID_EXEMPTED_PACKAGES_LIST =
             stringPreferencesKey("managed_shared_user_id_blacklist_exempted_packages_list")
+        val MANAGED_ALLOWED_SHA256_LIST =
+            stringPreferencesKey("managed_allowed_sha256_list")
         val ALWAYS_USE_ROOT_IN_SYSTEM =
             booleanPreferencesKey("always_use_root_in_system")
 

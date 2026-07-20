@@ -38,6 +38,7 @@ data class InstallerState(
 
     val defaultInstallerFromSettings: String? = null,
     val managedInstallerPackages: List<NamedPackage> = emptyList(),
+    val managedAllowedSha256List: List<String> = emptyList(),
 
     // User State & Other
     val rootMode: RootMode = RootMode.Magisk,

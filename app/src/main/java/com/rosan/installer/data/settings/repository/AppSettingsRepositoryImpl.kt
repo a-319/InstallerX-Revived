@@ -77,6 +77,7 @@ class AppSettingsRepositoryImpl(
             appDataStore.getNamedPackageList(AppDataStore.MANAGED_BLACKLIST_PACKAGES_LIST),
             appDataStore.getSharedUidList(AppDataStore.MANAGED_SHARED_USER_ID_BLACKLIST),
             appDataStore.getNamedPackageList(AppDataStore.MANAGED_SHARED_USER_ID_EXEMPTED_PACKAGES_LIST),
+            appDataStore.getString(AppDataStore.MANAGED_ALLOWED_SHA256_LIST, ""),
 
             appDataStore.getInt(AppDataStore.UNINSTALL_FLAGS, 0),
 
@@ -144,6 +145,7 @@ class AppSettingsRepositoryImpl(
             managedBlacklistPackages = values[idx++] as List<NamedPackage>,
             managedSharedUserIdBlacklist = values[idx++] as List<SharedUid>,
             managedSharedUserIdExemptedPackages = values[idx++] as List<NamedPackage>,
+            managedAllowedSha256List = (values[idx++] as String).split(",").map { it.trim().lowercase() }.filter { it.length == 64 },
             // Uninstaller
             uninstallFlags = values[idx++] as Int,
             // Updater
