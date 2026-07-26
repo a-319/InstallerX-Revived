@@ -2,11 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Dhizuku-API 2.5.4 declares minSdk 26. Dhizuku is an optional install
-         method that is gated at runtime (DeviceCapabilityProvider.isDhizukuSupported)
-         and never reached below Android 8.0, so it is safe to override here. -->
-    <uses-sdk tools:overrideLibrary="com.rosan.dhizuku.api" />
-
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -46,13 +41,17 @@
 
     <uses-permission android:name="com.rosan.dhizuku.permission.API" />
 
+    <!-- com.rosan.dhizuku.api: Dhizuku-API 2.5.4 declares minSdk 26. Dhizuku is an
+         optional install method gated at runtime (DeviceCapabilityProvider.isDhizukuSupported)
+         and never reached below Android 8.0. -->
     <uses-sdk tools:overrideLibrary="
         rikka.shizuku.api,
         rikka.shizuku.provider,
         rikka.shizuku.shared,
         rikka.shizuku.aidl,
         com.xzakota.hyper.notification.focus,
-        top.yukonga.miuix.kmp.blur
+        top.yukonga.miuix.kmp.blur,
+        com.rosan.dhizuku.api
     " />
 
     <application
