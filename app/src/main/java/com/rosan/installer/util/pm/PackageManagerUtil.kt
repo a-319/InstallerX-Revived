@@ -14,6 +14,15 @@ const val REASON_REMIND_OWNERSHIP = 2
 val PackageInfo.compatVersionCode: Long
     get() = PackageInfoCompat.getLongVersionCode(this)
 
+// Compat function to run below SDK 24, where getPackageUid is unavailable
+fun PackageManager.getPackageUidCompat(packageName: String, flags: Int): Int =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        getPackageUid(packageName, flags)
+    } else {
+        @Suppress("DEPRECATION")
+        getApplicationInfo(packageName, flags).uid
+    }
+
 // Compat function to run below SDK 33
 fun PackageManager.getCompatInstalledPackages(flags: Int): List<PackageInfo> {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

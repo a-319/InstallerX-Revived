@@ -174,6 +174,10 @@ abstract class IBinderAppInstallerRepoImpl(
         config: ConfigModel,
         packageName: String
     ) {
+        // The IPackageInstaller.uninstall AIDL signature used below (VersionedPackage)
+        // only exists since Android 8.0; older versions take a plain package name.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
+            throw Exception("Uninstalling via the privileged binder requires Android 8.0+")
         // Get the underlying IPackageManager and IPackageInstaller interfaces.
         val iPackageManager =
             IPackageManager.Stub.asInterface(iBinderWrapper(ServiceManager.getService("package")))
@@ -277,14 +281,17 @@ abstract class IBinderAppInstallerRepoImpl(
                     else -> throw Exception("can't install multiple package name in single session")
                 }
             )
-        config.callingFromUid?.let { params.setOriginatingUid(it) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
+            config.callingFromUid?.let { params.setOriginatingUid(it) }
         params.setAppPackageName(packageName)
-        // Customize Install Reason
-        if (config.enableCustomizeInstallReason) {
-            Timber.d("Setting installReason to ${config.installReason.name} (${config.installReason.value})")
-            params.setInstallReason(config.installReason.value)
-        } else
-            params.setInstallReason(PackageManager.INSTALL_REASON_UNKNOWN)
+        // Customize Install Reason (API 26+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (config.enableCustomizeInstallReason) {
+                Timber.d("Setting installReason to ${config.installReason.name} (${config.installReason.value})")
+                params.setInstallReason(config.installReason.value)
+            } else
+                params.setInstallReason(PackageManager.INSTALL_REASON_UNKNOWN)
+        }
         // --- Customize PackageSource ---
         // Only available on Android 13+, Dhizuku need test
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && config.authorizer != Authorizer.Dhizuku) {

@@ -622,7 +622,9 @@ class InstallerViewModel(
             }.toMutableList()
 
             if (!isMultiSelect && entityToToggle.selected) {
-                updatedEntities.replaceAll { it.copy(selected = false) }
+                for (i in updatedEntities.indices) {
+                    updatedEntities[i] = updatedEntities[i].copy(selected = false)
+                }
             }
 
             val newPackageAnalysisResult = packageToUpdate.copy(appEntities = updatedEntities)

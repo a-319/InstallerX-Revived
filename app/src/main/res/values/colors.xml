@@ -7,6 +7,8 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- Static fallback for API < 34; values-v34 uses the dynamic system color -->
+    <color name="dynamic_icon_background">#FFFEF7FF</color>
 
     <color name="light_primary">#FF4A672D</color>
     <color name="light_on_primary">#FF0E2000</color>

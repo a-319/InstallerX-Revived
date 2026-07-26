@@ -99,7 +99,7 @@ class SessionNotifierImpl(
     private var isXiaomiNetworkBlocked = false
     private val xmsfUid: Int? by lazy {
         try {
-            context.packageManager.getPackageUid(XMSF_PACKAGE_NAME, 0)
+            context.packageManager.getPackageUidCompat(XMSF_PACKAGE_NAME, 0)
         } catch (_: PackageManager.NameNotFoundException) {
             null
         }

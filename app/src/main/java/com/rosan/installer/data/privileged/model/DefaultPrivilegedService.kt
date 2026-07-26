@@ -718,7 +718,7 @@ class DefaultPrivilegedService(
 
                     // 3. Determine the appropriate source app label (Owner > Initiator)
                     try {
-                        if (isOwnershipConflict) {
+                        if (isOwnershipConflict && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                             // Priority 1: It's a conflict. Fetch the label of the app that currently owns the update rights.
                             val sourceInfo = context.packageManager.getInstallSourceInfo(packageName)
                             val ownerPkg = sourceInfo.updateOwnerPackageName

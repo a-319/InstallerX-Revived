@@ -50,13 +50,19 @@ object DeviceConfig {
 
     val supportedLocales: List<String>
         get() {
-            val locales = Resources.getSystem().configuration.locales
-            if (locales.isEmpty) return listOf("base")
-
+            val configuration = Resources.getSystem().configuration
             val languages = mutableSetOf<String>()
-            for (i in 0 until locales.size()) {
-                val langCode = locales.get(i).toLanguageTag().substringBefore('-')
-                languages.add(langCode.convertLegacyLanguageCode())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                val locales = configuration.locales
+                if (locales.isEmpty) return listOf("base")
+                for (i in 0 until locales.size()) {
+                    val langCode = locales.get(i).toLanguageTag().substringBefore('-')
+                    languages.add(langCode.convertLegacyLanguageCode())
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val locale = configuration.locale ?: return listOf("base")
+                languages.add(locale.toLanguageTag().substringBefore('-').convertLegacyLanguageCode())
             }
             languages.add("base")
             return languages.toList()

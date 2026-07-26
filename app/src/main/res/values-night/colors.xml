@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="dynamic_icon_background">@android:color/system_surface_dark</color>
+    <!-- Static fallback for API < 34; values-night-v34 uses the dynamic system color -->
+    <color name="dynamic_icon_background">#FF1C1B1F</color>
 
 </resources>

@@ -76,7 +76,7 @@ data class InstalledAppInfo(
                     // Safely handle nullable versionName.
                     versionName = packageInfo.versionName ?: "",
                     applicationInfo = applicationInfo,
-                    minSdk = applicationInfo?.minSdkVersion,
+                    minSdk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) applicationInfo?.minSdkVersion else null,
                     targetSdk = applicationInfo?.targetSdkVersion,
                     signatureHash = signatureHash,
                     isSystemApp = flags.hasFlag(ApplicationInfo.FLAG_SYSTEM),

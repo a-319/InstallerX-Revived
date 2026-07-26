@@ -123,7 +123,9 @@ class ApplyViewModel(
         // Execute sorting
         var finalComparator = compareBy(*comparators.toTypedArray())
         if (prefs.orderInReverse) {
-            finalComparator = finalComparator.reversed()
+            // Collections.reverseOrder is available on all API levels,
+            // unlike Comparator.reversed() which requires API 24.
+            finalComparator = java.util.Collections.reverseOrder(finalComparator)
         }
 
         filtered.sortedWith(finalComparator)
