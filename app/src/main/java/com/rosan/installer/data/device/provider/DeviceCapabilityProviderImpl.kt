@@ -45,6 +45,9 @@ class DeviceCapabilityProviderImpl(
         getMiuiPackageInstallerVersion() != null
     }
 
+    override val isDhizukuSupported: Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+
     override val isSystemApp: Boolean by lazy {
         try {
             context.applicationInfo.flags.hasFlag(ApplicationInfo.FLAG_SYSTEM)

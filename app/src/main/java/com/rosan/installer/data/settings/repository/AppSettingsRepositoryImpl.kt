@@ -42,7 +42,11 @@ class AppSettingsRepositoryImpl(
         listOf(
             appDataStore.getString(
                 AppDataStore.AUTHORIZER,
-                if (capabilityProvider.isSystemApp) Authorizer.None.value else Authorizer.Dhizuku.value
+                when {
+                    capabilityProvider.isSystemApp -> Authorizer.None.value
+                    capabilityProvider.isDhizukuSupported -> Authorizer.Dhizuku.value
+                    else -> Authorizer.Shizuku.value
+                }
             ),
             appDataStore.getBoolean(AppDataStore.ALWAYS_USE_ROOT_IN_SYSTEM, false),
             appDataStore.getString(AppDataStore.CUSTOMIZE_AUTHORIZER, ""),

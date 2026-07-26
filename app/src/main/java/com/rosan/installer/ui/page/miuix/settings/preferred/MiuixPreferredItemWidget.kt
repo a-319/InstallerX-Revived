@@ -109,10 +109,11 @@ fun MiuixDataAuthorizerWidget(
                 Authorizer.Shizuku,
                 AuthorizerInfo(R.string.config_authorizer_shizuku, shizukuIcon)
             )
-            put(
-                Authorizer.Dhizuku,
-                AuthorizerInfo(R.string.config_authorizer_dhizuku, AppIcons.InstallAllowRestrictedPermissions)
-            )
+            if (capabilityProvider.isDhizukuSupported)
+                put(
+                    Authorizer.Dhizuku,
+                    AuthorizerInfo(R.string.config_authorizer_dhizuku, AppIcons.InstallAllowRestrictedPermissions)
+                )
         }
     }
 

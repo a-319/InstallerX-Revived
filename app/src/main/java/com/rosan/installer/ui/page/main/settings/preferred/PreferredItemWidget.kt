@@ -113,28 +113,39 @@ fun DataAuthorizerWidget(
     val shizukuIcon = ImageVector.vectorResource(R.drawable.ic_shizuku)
 
     val isSessionInstallSupported = capabilityProvider.isSessionInstallSupported
-    val authorizerOptions = mapOf(
-        Authorizer.None to AuthorizerInfo(
-            R.string.config_authorizer_none,
-            AppIcons.None
-        ),
-        Authorizer.Root to AuthorizerInfo(
-            R.string.config_authorizer_root,
-            AppIcons.Root
-        ),
-        Authorizer.Shizuku to AuthorizerInfo(
-            R.string.config_authorizer_shizuku,
-            shizukuIcon
-        ),
-        Authorizer.Dhizuku to AuthorizerInfo(
-            R.string.config_authorizer_dhizuku,
-            AppIcons.InstallAllowRestrictedPermissions
-        ),
-        /* Authorizer.Customize to AuthorizerInfo(
-                    R.string.config_authorizer_customize,
-                    AppIcons.Customize
-                ),*/
-    )
+    val authorizerOptions = buildMap {
+        put(
+            Authorizer.None, AuthorizerInfo(
+                R.string.config_authorizer_none,
+                AppIcons.None
+            )
+        )
+        put(
+            Authorizer.Root, AuthorizerInfo(
+                R.string.config_authorizer_root,
+                AppIcons.Root
+            )
+        )
+        put(
+            Authorizer.Shizuku, AuthorizerInfo(
+                R.string.config_authorizer_shizuku,
+                shizukuIcon
+            )
+        )
+        if (capabilityProvider.isDhizukuSupported)
+            put(
+                Authorizer.Dhizuku, AuthorizerInfo(
+                    R.string.config_authorizer_dhizuku,
+                    AppIcons.InstallAllowRestrictedPermissions
+                )
+            )
+        /* put(
+            Authorizer.Customize, AuthorizerInfo(
+                R.string.config_authorizer_customize,
+                AppIcons.Customize
+            )
+        )*/
+    }
 
     Column {
         BaseWidget(

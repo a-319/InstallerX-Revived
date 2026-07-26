@@ -95,7 +95,8 @@ fun MiuixDataAuthorizerWidget(state: EditViewState, dispatch: (EditViewAction) -
             put(Authorizer.None, stringResource(R.string.config_authorizer_none))
         put(Authorizer.Root, stringResource(R.string.config_authorizer_root))
         put(Authorizer.Shizuku, stringResource(R.string.config_authorizer_shizuku))
-        put(Authorizer.Dhizuku, stringResource(R.string.config_authorizer_dhizuku))
+        if (capabilityProvider.isDhizukuSupported)
+            put(Authorizer.Dhizuku, stringResource(R.string.config_authorizer_dhizuku))
         put(Authorizer.Customize, stringResource(R.string.config_authorizer_customize))
     }
 
