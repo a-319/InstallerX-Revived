@@ -3,7 +3,7 @@
 package com.rosan.installer.core.env
 
 import com.rosan.installer.BuildConfig
-import com.rosan.installer.domain.device.model.Level
+import com.rosan.installer.core.device.model.Level
 
 object AppConfig {
     val LEVEL: Level = when (BuildConfig.BUILD_LEVEL) {
@@ -18,5 +18,6 @@ object AppConfig {
     const val VERSION_NAME: String = BuildConfig.VERSION_NAME
     const val VERSION_CODE: Int = BuildConfig.VERSION_CODE
 
+    val isRespectPlatformInstallPolicyAvailable = LEVEL == Level.UNSTABLE
     val isLogEnabled = LEVEL == Level.PREVIEW || LEVEL == Level.UNSTABLE || isDebug
 }

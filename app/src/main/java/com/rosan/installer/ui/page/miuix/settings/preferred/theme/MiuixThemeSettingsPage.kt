@@ -25,61 +25,51 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.rosan.installer.R
-import com.rosan.installer.core.env.DeviceConfig
-import com.rosan.installer.domain.device.model.Manufacturer
-import com.rosan.installer.domain.settings.model.PredictiveBackAnimation
-import com.rosan.installer.domain.settings.model.PredictiveBackExitDirection
+import com.rosan.installer.domain.settings.model.preferences.PredictiveBackAnimation
+import com.rosan.installer.domain.settings.model.preferences.PredictiveBackExitDirection
 import com.rosan.installer.ui.navigation.LocalNavigator
 import com.rosan.installer.ui.page.main.settings.preferred.theme.ThemeSettingsAction
 import com.rosan.installer.ui.page.main.settings.preferred.theme.ThemeSettingsViewModel
 import com.rosan.installer.ui.page.main.widget.card.ColorSwatchPreview
-import com.rosan.installer.ui.page.miuix.settings.preferred.MiuixColorSpecWidget
-import com.rosan.installer.ui.page.miuix.settings.preferred.MiuixPaletteStyleWidget
-import com.rosan.installer.ui.page.miuix.settings.preferred.MiuixThemeEngineWidget
-import com.rosan.installer.ui.page.miuix.settings.preferred.MiuixThemeModeWidget
 import com.rosan.installer.ui.page.miuix.widgets.MiuixBackButton
 import com.rosan.installer.ui.page.miuix.widgets.MiuixSwitchWidget
 import com.rosan.installer.ui.theme.getMiuixAppBarColor
 import com.rosan.installer.ui.theme.installerMiuixBlurEffect
+import com.rosan.installer.domain.settings.model.preferences.theme.PaletteStyle
+import com.rosan.installer.domain.settings.model.preferences.theme.ThemeColorSpec
+import com.rosan.installer.domain.settings.model.preferences.theme.ThemeMode
 import com.rosan.installer.ui.theme.rememberMiuixBlurBackdrop
 import org.koin.androidx.compose.koinViewModel
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SpinnerEntry
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @SuppressLint("RestrictedApi")
 @Composable
@@ -90,27 +80,6 @@ fun MiuixThemeSettingsPage(
     val uiState by viewModel.state.collectAsStateWithLifecycle()
     val scrollBehavior = MiuixScrollBehavior()
     val transition = LocalNavAnimatedContentScope.current.transition
-
-    val showHideLauncherIconDialog = remember { mutableStateOf(false) }
-    val showBlurWarningDialog = remember { mutableStateOf(false) }
-
-    MiuixHideLauncherIconWarningDialog(
-        showState = showHideLauncherIconDialog,
-        onDismiss = { showHideLauncherIconDialog.value = false },
-        onConfirm = {
-            showHideLauncherIconDialog.value = false
-            viewModel.dispatch(ThemeSettingsAction.ChangeShowLauncherIcon(false))
-        }
-    )
-
-    MiuixBlurWarningDialog(
-        showState = showBlurWarningDialog,
-        onDismiss = { showBlurWarningDialog.value = false },
-        onConfirm = {
-            showBlurWarningDialog.value = false
-            viewModel.dispatch(ThemeSettingsAction.SetUseBlur(true))
-        }
-    )
 
     val layoutDirection = LocalLayoutDirection.current
     val horizontalSafeInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal).asPaddingValues()
@@ -181,18 +150,14 @@ fun MiuixThemeSettingsPage(
                             viewModel.dispatch(ThemeSettingsAction.SetThemeMode(newMode))
                         }
                     )
-                    MiuixSwitchWidget(
-                        title = stringResource(R.string.theme_settings_use_blur),
-                        description = stringResource(R.string.theme_settings_use_blur_desc),
-                        checked = uiState.useBlur,
-                        onCheckedChange = { isChecked ->
-                            if (isChecked && Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
-                                showBlurWarningDialog.value = true
-                            } else {
-                                viewModel.dispatch(ThemeSettingsAction.SetUseBlur(isChecked))
-                            }
-                        }
-                    )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        MiuixSwitchWidget(
+                            title = stringResource(R.string.theme_settings_use_blur),
+                            description = stringResource(R.string.theme_settings_use_blur_desc),
+                            checked = uiState.useBlur,
+                            onCheckedChange = { viewModel.dispatch(ThemeSettingsAction.SetUseBlur(it)) }
+                        )
+                    }
                     MiuixSwitchWidget(
                         title = stringResource(R.string.theme_settings_miuix_custom_colors),
                         description = stringResource(R.string.theme_settings_miuix_custom_colors_desc),
@@ -254,7 +219,7 @@ fun MiuixThemeSettingsPage(
                             }
                         )
                     }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && uiState.showLiveActivity)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && uiState.showLiveActivity)
                         MiuixSwitchWidget(
                             title = stringResource(R.string.theme_settings_live_activity_dynamic_color_follow_icon),
                             description = stringResource(R.string.theme_settings_live_activity_dynamic_color_follow_icon_desc),
@@ -310,8 +275,9 @@ fun MiuixThemeSettingsPage(
                                                         colorSpec = uiState.colorSpec,
                                                         textStyle = MiuixTheme.textStyles.footnote1,
                                                         textColor = MiuixTheme.colorScheme.onSurface,
-                                                        isSelected = uiState.seedColor == rawColor.color &&
-                                                                !(uiState.useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S),
+                                                        isSelected =
+                                                            uiState.seedColor == rawColor.color
+                                                            && !(uiState.useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S),
                                                     ) {
                                                         viewModel.dispatch(
                                                             ThemeSettingsAction.SetSeedColor(
@@ -338,46 +304,48 @@ fun MiuixThemeSettingsPage(
             }
 
             // Predictive Back Section
-            item { SmallTitle(stringResource(R.string.theme_settings_predictive_back)) }
-            item {
-                Card(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 12.dp)
-                ) {
-                    MiuixPredictiveBackAnimationWidget(
-                        currentAnimation = uiState.predictiveBackAnimation,
-                        onAnimationChange = { newAnim ->
-                            // Hey Google
-                            // Why you keep playing the animation even we are already play completed?
-                            // This is very dirty, We are using RestrictedApi, but we don't have other choice
-                            transition.setPlaytimeAfterInitialAndTargetStateEstablished(
-                                transition.targetState,
-                                transition.targetState,
-                                transition.playTimeNanos
-                            )
-
-                            viewModel.dispatch(ThemeSettingsAction.SetPredictiveBackAnimation(newAnim))
-                        }
-                    )
-
-                    AnimatedVisibility(
-                        visible = uiState.predictiveBackAnimation == PredictiveBackAnimation.Scale ||
-                                uiState.predictiveBackAnimation == PredictiveBackAnimation.AOSP,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                item { SmallTitle(stringResource(R.string.theme_settings_predictive_back)) }
+                item {
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp)
                     ) {
-                        MiuixPredictiveBackExitDirectionWidget(
-                            currentDirection = uiState.predictiveBackExitDirection,
-                            onDirectionChange = {
+                        MiuixPredictiveBackAnimationWidget(
+                            currentAnimation = uiState.predictiveBackAnimation,
+                            onAnimationChange = { newAnim ->
+                                // Hey Google
+                                // Why you keep playing the animation even we are already play completed?
+                                // This is very dirty, We are using RestrictedApi, but we don't have other choice
                                 transition.setPlaytimeAfterInitialAndTargetStateEstablished(
                                     transition.targetState,
                                     transition.targetState,
                                     transition.playTimeNanos
                                 )
-                                viewModel.dispatch(ThemeSettingsAction.SetPredictiveBackExitDirection(it))
+
+                                viewModel.dispatch(ThemeSettingsAction.SetPredictiveBackAnimation(newAnim))
                             }
                         )
+
+                        AnimatedVisibility(
+                            visible = uiState.predictiveBackAnimation == PredictiveBackAnimation.Scale ||
+                                    uiState.predictiveBackAnimation == PredictiveBackAnimation.AOSP,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            MiuixPredictiveBackExitDirectionWidget(
+                                currentDirection = uiState.predictiveBackExitDirection,
+                                onDirectionChange = {
+                                    transition.setPlaytimeAfterInitialAndTargetStateEstablished(
+                                        transition.targetState,
+                                        transition.targetState,
+                                        transition.playTimeNanos
+                                    )
+                                    viewModel.dispatch(ThemeSettingsAction.SetPredictiveBackExitDirection(it))
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -397,27 +365,6 @@ fun MiuixThemeSettingsPage(
                             viewModel.dispatch(
                                 ThemeSettingsAction.ChangePreferSystemIcon(it)
                             )
-                        }
-                    )
-                }
-            }
-            item { SmallTitle(stringResource(R.string.theme_settings_launcher_icons)) }
-            item {
-                Card(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 12.dp)
-                ) {
-                    MiuixSwitchWidget(
-                        title = stringResource(R.string.theme_settings_hide_launcher_icon),
-                        description = stringResource(R.string.theme_settings_hide_launcher_icon_desc),
-                        checked = !uiState.showLauncherIcon,
-                        onCheckedChange = { newCheckedState ->
-                            if (newCheckedState) {
-                                showHideLauncherIconDialog.value = true
-                            } else {
-                                viewModel.dispatch(ThemeSettingsAction.ChangeShowLauncherIcon(true))
-                            }
                         }
                     )
                 }
@@ -445,9 +392,9 @@ private fun MiuixPredictiveBackAnimationWidget(
             PredictiveBackAnimation.AOSP -> stringResource(R.string.theme_settings_predictive_back_animation_aosp)
             PredictiveBackAnimation.MIUIX -> stringResource(R.string.theme_settings_predictive_back_animation_miuix)
             PredictiveBackAnimation.Scale -> stringResource(R.string.theme_settings_predictive_back_animation_scale)
-            PredictiveBackAnimation.KernelSUClassic -> stringResource(R.string.theme_settings_predictive_back_animation_ksu_classic)
+            PredictiveBackAnimation.Classic -> stringResource(R.string.theme_settings_predictive_back_animation_ksu_classic)
         }
-        SpinnerEntry(title = title)
+        DropdownItem(title = title)
     }
 
     val selectedIndex = remember(currentAnimation, options) {
@@ -486,7 +433,7 @@ private fun MiuixPredictiveBackExitDirectionWidget(
             PredictiveBackExitDirection.ALWAYS_RIGHT -> stringResource(R.string.theme_settings_predictive_back_exit_direction_always_right)
             PredictiveBackExitDirection.ALWAYS_LEFT -> stringResource(R.string.theme_settings_predictive_back_exit_direction_always_left)
         }
-        SpinnerEntry(title = title)
+        DropdownItem(title = title)
     }
 
     val selectedIndex = remember(currentDirection, options) {
@@ -507,99 +454,200 @@ private fun MiuixPredictiveBackExitDirectionWidget(
     )
 }
 
+/**
+ * Theme Engine selection widget using WindowSpinnerPreference, following the provided pattern.
+ * Simplified version without data class and icons.
+ *
+ * @param currentThemeIsMiuix True if MIUIX theme is selected, false if Google theme is selected.
+ * @param onThemeChange Callback when the selection changes. Boolean parameter indicates new selection (true = MIUIX).
+ */
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
-private fun MiuixHideLauncherIconWarningDialog(
-    showState: MutableState<Boolean>,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
+private fun MiuixThemeEngineWidget(
+    modifier: Modifier = Modifier,
+    currentThemeIsMiuix: Boolean,
+    onThemeChange: (Boolean) -> Unit,
 ) {
-    WindowDialog(
-        show = showState.value,
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.warning),
-        content = {
-            // Custom content layout with body text and action buttons
-            Column {
-                // Warning message
-                Text(
-                    text = stringResource(R.string.theme_settings_hide_launcher_icon_warning),
-                    color = MiuixTheme.colorScheme.onSurface
-                )
-                if (DeviceConfig.currentManufacturer == Manufacturer.XIAOMI)
-                    Text(
-                        text = stringResource(R.string.theme_settings_hide_launcher_icon_warning_xiaomi),
-                        color = MiuixTheme.colorScheme.onSurface
-                    )
-                Spacer(modifier = Modifier.height(24.dp)) // Spacing before buttons
+    val context = LocalContext.current
 
-                // Action buttons row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Dismiss button
-                    TextButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = onDismiss,
-                        text = stringResource(R.string.cancel)
-                    )
+    val themeOptions = remember {
+        mapOf(
+            true to R.string.theme_settings_miuix_ui, // Key = true -> MIUIX UI string resource
+            false to R.string.theme_settings_google_ui // Key = false -> Google UI string resource
+        )
+    }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+    // Convert map entries to List<DropdownItem> for WindowSpinnerPreference.
+    // Ensure the order matches the keys: index 0 = true, index 1 = false.
+    val spinnerEntries = remember(themeOptions) {
+        themeOptions.entries.sortedByDescending { it.key }.map { entry ->
+            DropdownItem(
+                title = context.getString(entry.value)
+            )
+        }
+    }
 
-                    // Confirm button with primary color styling
-                    TextButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = onConfirm,
-                        text = stringResource(R.string.confirm),
-                        colors = ButtonDefaults.textButtonColorsPrimary() // Apply primary color style
-                    )
-                }
+    // Determine selected index based on currentThemeIsMiuix state.
+    // Index 0 corresponds to true (MIUIX), Index 1 corresponds to false (Google).
+    val selectedIndex = remember(currentThemeIsMiuix) {
+        if (currentThemeIsMiuix) 0 else 1
+    }
+
+    WindowSpinnerPreference(
+        modifier = modifier,
+        title = stringResource(id = R.string.theme_settings_ui_engine),
+        // summary = spinnerEntries[selectedIndex].title,
+        items = spinnerEntries,
+        selectedIndex = selectedIndex,
+        onSelectedIndexChange = { newIndex ->
+            // Convert index back to boolean key (0 -> true, 1 -> false)
+            val newModeIsMiuix = themeOptions.keys.sortedDescending().elementAt(newIndex)
+            if (currentThemeIsMiuix != newModeIsMiuix) {
+                onThemeChange(newModeIsMiuix)
             }
         }
     )
 }
 
 /**
- * A miuix-style dialog to warn the user about unstable blur effects on Android 11 and below.
+ * A WindowSpinnerPreference widget for selecting the application's theme mode (Light, Dark, or System).
+ *
+ * @param modifier The modifier to be applied to the WindowSpinnerPreference.
+ * @param currentThemeMode The currently selected ThemeMode.
+ * @param onThemeModeChange A callback that is invoked when the theme mode selection changes.
+ */
+@SuppressLint("LocalContextGetResourceValueCall")
+@Composable
+fun MiuixThemeModeWidget(
+    modifier: Modifier = Modifier,
+    currentThemeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+) {
+    val context = LocalContext.current
+
+    // Map of ThemeMode enum to its corresponding string resource ID.
+    val themeModeOptions = remember {
+        // The order in the map definition determines the order in the spinner.
+        mapOf(
+            ThemeMode.LIGHT to R.string.theme_settings_theme_mode_light,
+            ThemeMode.DARK to R.string.theme_settings_theme_mode_dark,
+            ThemeMode.SYSTEM to R.string.theme_settings_theme_mode_system
+        )
+    }
+
+    // Convert the map of options to a list of DropdownItem for the WindowSpinnerPreference component.
+    // The order of items in the list is important for index mapping.
+    val spinnerEntries = remember(themeModeOptions) {
+        themeModeOptions.entries.map { entry ->
+            DropdownItem(title = context.getString(entry.value))
+        }
+    }
+
+    // Calculate the selected index based on the current theme mode.
+    // It finds the index of the currentThemeMode in the ordered list of keys.
+    val selectedIndex = remember(currentThemeMode, themeModeOptions) {
+        themeModeOptions.keys.indexOf(currentThemeMode).coerceAtLeast(0)
+    }
+
+    WindowSpinnerPreference(
+        modifier = modifier,
+        title = stringResource(id = R.string.theme_settings_theme_mode),
+        items = spinnerEntries,
+        selectedIndex = selectedIndex,
+        onSelectedIndexChange = { newIndex ->
+            // Retrieve the new ThemeMode based on the selected index.
+            val newMode = themeModeOptions.keys.elementAt(newIndex)
+            // Invoke the callback only if the mode has actually changed.
+            if (currentThemeMode != newMode) {
+                onThemeModeChange(newMode)
+            }
+        }
+    )
+}
+
+/**
+ * WindowSpinnerPreference widget for selecting the Palette Style.
  */
 @Composable
-fun MiuixBlurWarningDialog(
-    showState: MutableState<Boolean>,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
+fun MiuixPaletteStyleWidget(
+    modifier: Modifier = Modifier,
+    currentPaletteStyle: PaletteStyle,
+    onPaletteStyleChange: (PaletteStyle) -> Unit
 ) {
-    WindowDialog(
-        show = showState.value,
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.warning),
-        content = {
-            Column {
-                Text(
-                    text = stringResource(R.string.theme_settings_use_blur_warning),
-                    color = MiuixTheme.colorScheme.onSurface
-                )
+    val options = remember { PaletteStyle.entries }
+    val spinnerEntries = remember(options) {
+        options.map { DropdownItem(title = it.displayName) }
+    }
+    val selectedIndex = remember(currentPaletteStyle, options) {
+        options.indexOf(currentPaletteStyle).coerceAtLeast(0)
+    }
 
-                Spacer(modifier = Modifier.height(24.dp))
+    WindowSpinnerPreference(
+        modifier = modifier,
+        title = stringResource(id = R.string.theme_settings_palette_style),
+        items = spinnerEntries,
+        selectedIndex = selectedIndex,
+        onSelectedIndexChange = { newIndex ->
+            val newStyle = options[newIndex]
+            if (currentPaletteStyle != newStyle) {
+                onPaletteStyleChange(newStyle)
+            }
+        }
+    )
+}
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TextButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = onDismiss,
-                        text = stringResource(R.string.cancel)
-                    )
+/**
+ * WindowSpinnerPreference widget for selecting the Theme Color Spec.
+ * Includes fallback logic to gracefully handle styles that do not support SPEC_2025.
+ */
+@Composable
+fun MiuixColorSpecWidget(
+    modifier: Modifier = Modifier,
+    currentColorSpec: ThemeColorSpec,
+    currentPaletteStyle: PaletteStyle,
+    onColorSpecChange: (ThemeColorSpec) -> Unit
+) {
+    // 1. Check if the current PaletteStyle supports SPEC_2025
+    val isSpec2025Supported = currentPaletteStyle in listOf(
+        PaletteStyle.TonalSpot,
+        PaletteStyle.Neutral,
+        PaletteStyle.Vibrant,
+        PaletteStyle.Expressive
+    )
 
-                    Spacer(modifier = Modifier.width(8.dp))
+    // 2. Filter available specs based on support
+    val availableSpecs = if (isSpec2025Supported) {
+        ThemeColorSpec.entries
+    } else {
+        listOf(ThemeColorSpec.SPEC_2021)
+    }
 
-                    TextButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = onConfirm,
-                        text = stringResource(R.string.confirm),
-                        colors = ButtonDefaults.textButtonColorsPrimary()
-                    )
-                }
+    // 3. Determine the actual spec being applied to match the fallback logic
+    val activeSpec = if (!isSpec2025Supported) ThemeColorSpec.SPEC_2021 else currentColorSpec
+
+    // 4. Use a static localized string for the unsupported state
+    val descriptionText = if (!isSpec2025Supported) {
+        stringResource(id = R.string.theme_settings_color_spec_only_2021)
+    } else null
+
+    val spinnerEntries = remember(availableSpecs) {
+        availableSpecs.map { DropdownItem(title = it.displayName) }
+    }
+
+    val selectedIndex = remember(activeSpec, availableSpecs) {
+        availableSpecs.indexOf(activeSpec).coerceAtLeast(0)
+    }
+
+    WindowSpinnerPreference(
+        modifier = modifier,
+        title = stringResource(id = R.string.theme_settings_color_spec),
+        summary = descriptionText,
+        items = spinnerEntries,
+        selectedIndex = selectedIndex,
+        onSelectedIndexChange = { newIndex ->
+            val selectedSpec = availableSpecs[newIndex]
+            if (currentColorSpec != selectedSpec) {
+                onColorSpecChange(selectedSpec)
             }
         }
     )

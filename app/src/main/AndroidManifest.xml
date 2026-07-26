@@ -23,22 +23,24 @@
         android:name="android.permission.DELETE_PACKAGES"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-
     <uses-permission
         android:name="android.permission.REQUEST_INSTALL_PACKAGES"
         tools:ignore="RequestInstallPackagesPolicy" />
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
-
     <uses-permission
         android:name="android.permission.MANAGE_USERS"
         tools:ignore="ProtectedPermissions" />
-
     <uses-permission android:name="android.permission.READ_INSTALL_SESSIONS" />
     <uses-permission
         android:name="android.permission.READ_INSTALLED_SESSION_PATHS"
         tools:ignore="ProtectedPermissions" />
-
+    <uses-permission
+        android:name="android.permission.UPDATE_APP_OPS_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.MANAGE_APP_OPS_MODES"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="com.rosan.dhizuku.permission.API" />
 
     <uses-sdk tools:overrideLibrary="
@@ -52,9 +54,11 @@
 
     <application
         android:name=".App"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:localeConfig="@xml/locales_config"
+        android:fullBackupContent="@xml/backup_rules"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Installer"
@@ -123,6 +127,7 @@
             <intent-filter android:priority="10">
                 <action android:name="android.content.pm.action.CONFIRM_INSTALL" />
                 <action android:name="android.content.pm.action.CONFIRM_PERMISSIONS" />
+                <action android:name="android.content.pm.action.CONFIRM_PRE_APPROVAL" />
 
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
@@ -147,7 +152,24 @@
         </activity>
 
         <activity
-            android:name=".ui.activity.BiometricsAuthenticationActivity"
+            android:name=".ui.activity.UnarchiveActivity"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:launchMode="singleInstance"
+            android:theme="@style/Theme.Installer.Translucent">
+            <intent-filter>
+                <action android:name="com.android.intent.action.UNARCHIVE_DIALOG" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.android.intent.action.UNARCHIVE_ERROR_DIALOG" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".framework.activity.BiometricsAuthenticationActivity"
             android:exported="false"
             android:launchMode="singleInstance"
             android:theme="@style/Theme.Installer.Translucent.AppCompat"

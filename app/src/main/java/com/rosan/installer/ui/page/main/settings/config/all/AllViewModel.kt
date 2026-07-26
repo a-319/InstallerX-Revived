@@ -4,13 +4,14 @@ package com.rosan.installer.ui.page.main.settings.config.all
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.rosan.installer.domain.settings.model.ConfigModel
+import com.rosan.installer.domain.settings.model.config.ConfigModel
+import com.rosan.installer.domain.settings.model.config.DeletedConfigSnapshot
 import com.rosan.installer.domain.settings.repository.AppSettingsRepository
 import com.rosan.installer.domain.settings.repository.BooleanSetting
 import com.rosan.installer.domain.settings.repository.ConfigRepository
+import com.rosan.installer.domain.settings.usecase.config.DeleteConfigWithScopesUseCase
+import com.rosan.installer.domain.settings.usecase.config.RestoreDeletedConfigSnapshotUseCase
 import com.rosan.installer.domain.settings.util.ConfigOrder
-import com.rosan.installer.ui.navigation.Navigator
-import com.rosan.installer.ui.navigation.Route
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -24,8 +25,9 @@ import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 
 class AllViewModel(
-    var navigator: Navigator,
     private val repo: ConfigRepository,
+    private val deleteConfigWithScopes: DeleteConfigWithScopesUseCase,
+    private val restoreDeletedConfigSnapshot: RestoreDeletedConfigSnapshotUseCase,
     private val appSettingsRepo: AppSettingsRepository
 ) : ViewModel(), KoinComponent {
 
@@ -52,7 +54,7 @@ class AllViewModel(
             is AllViewAction.UserReadScopeTips -> userReadTips()
             is AllViewAction.ChangeDataConfigOrder -> changeDataConfigOrder(action.configOrder)
             is AllViewAction.DeleteDataConfig -> deleteDataConfig(action.configModel)
-            is AllViewAction.RestoreDataConfig -> restoreDataConfig(action.configModel)
+            is AllViewAction.RestoreDataConfig -> restoreDataConfig(action.snapshot)
             is AllViewAction.EditDataConfig -> editDataConfig(action.configModel)
             is AllViewAction.ApplyConfig -> applyConfig(action.configModel)
         }
@@ -103,34 +105,27 @@ class AllViewModel(
 
     private fun editDataConfig(configModel: ConfigModel) {
         viewModelScope.launch {
-            navigator.push(
-                Route.EditConfig(
-                    configModel.id
-                )
-            )
+            // Emit navigation event instead of calling navigator directly
+            _eventFlow.emit(AllViewEvent.NavigateToEditConfig(configModel.id))
         }
     }
 
     private fun deleteDataConfig(configModel: ConfigModel) {
         viewModelScope.launch(Dispatchers.IO) {
-            repo.delete(configModel)
-            _eventFlow.emit(AllViewEvent.DeletedConfig(configModel))
+            _eventFlow.emit(AllViewEvent.DeletedConfig(deleteConfigWithScopes(configModel)))
         }
     }
 
-    private fun restoreDataConfig(configModel: ConfigModel) {
+    private fun restoreDataConfig(snapshot: DeletedConfigSnapshot) {
         viewModelScope.launch(Dispatchers.IO) {
-            repo.insert(configModel)
+            restoreDeletedConfigSnapshot(snapshot)
         }
     }
 
     private fun applyConfig(configModel: ConfigModel) {
         viewModelScope.launch {
-            navigator.push(
-                Route.ApplyConfig(
-                    configModel.id
-                )
-            )
+            // Emit navigation event instead of calling navigator directly
+            _eventFlow.emit(AllViewEvent.NavigateToApplyConfig(configModel.id))
         }
     }
 }

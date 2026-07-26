@@ -6,21 +6,21 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.AssetFileDescriptor
 import android.net.Uri
-import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.system.Os
 import android.system.OsConstants
+import androidx.core.content.IntentCompat
 import androidx.core.net.toUri
 import com.rosan.installer.core.env.AppConfig
 import com.rosan.installer.data.session.util.copyToWithProgress
 import com.rosan.installer.data.session.util.getRealPathFromUri
 import com.rosan.installer.data.session.util.pathUnify
 import com.rosan.installer.data.session.util.transferWithProgress
-import com.rosan.installer.domain.engine.model.DataEntity
+import com.rosan.installer.domain.engine.model.source.DataEntity
 import com.rosan.installer.domain.session.exception.ResolveException
-import com.rosan.installer.domain.session.exception.ResolvedFailedNoInternetAccessException
 import com.rosan.installer.domain.session.model.ProgressEntity
+import com.rosan.installer.domain.session.model.ResolveErrorType
 import com.rosan.installer.domain.session.model.ResolveResult
 import com.rosan.installer.domain.session.repository.NetworkResolver
 import kotlinx.coroutines.CancellationException
@@ -84,12 +84,7 @@ class SourceResolver(
 
                 // 2. Fallback to Stream/ClipData if no URL found (Handles file sharing, including text files like logcat.txt)
                 if (uris.isEmpty()) {
-                    val streamUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intent.getParcelableExtra(Intent.EXTRA_STREAM)
-                    }
+                    val streamUri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
 
                     if (streamUri != null) uris.add(streamUri)
 
@@ -124,12 +119,7 @@ class SourceResolver(
             }
 
             Intent.ACTION_SEND_MULTIPLE -> {
-                val streams = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
-                }
+                val streams = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
                 streams?.filterNotNull()?.let { uris.addAll(it) }
 
                 if (uris.isEmpty()) {
@@ -151,7 +141,10 @@ class SourceResolver(
             }
         }
 
-        if (uris.isEmpty()) throw ResolveException(action, uris)
+        if (uris.isEmpty()) throw ResolveException(
+            errorType = ResolveErrorType.GENERIC_FAILED,
+            message = "action: $action, uri: $uris"
+        )
         return uris
     }
 
@@ -173,20 +166,44 @@ class SourceResolver(
             "http", "https" -> {
                 if (!AppConfig.isInternetAccessEnabled) {
                     Timber.d("Internet access is disabled in app settings. Aborting network request.")
-                    throw ResolvedFailedNoInternetAccessException("No internet access to download files.")
+                    throw ResolveException(
+                        errorType = ResolveErrorType.NO_INTERNET_ACCESS,
+                        message = "No internet access to download files."
+                    )
                 }
 
                 networkResolver.resolve(uri, cacheDirectory, progressFlow)
             }
 
-            else -> throw ResolveException("Unsupported scheme: $scheme", listOf(uri))
+            else -> throw ResolveException(
+                errorType = ResolveErrorType.GENERIC_FAILED,
+                message = "Unsupported scheme: $scheme, uris: $uri"
+            )
         }
     }
 
     private suspend fun resolveContentUri(uri: Uri): List<DataEntity> {
-        val afd = context.contentResolver?.openAssetFileDescriptor(uri, "r")
-            ?: throw IOException("Cannot open file descriptor: $uri")
+        val afd = try {
+            context.contentResolver?.openAssetFileDescriptor(uri, "r")
+                ?: throw IOException("Cannot open file descriptor: $uri")
+        } catch (e: SecurityException) {
+            val message = e.message.orEmpty()
+            val isUriPermissionDenial =
+                message.contains("grantUriPermission", ignoreCase = true) ||
+                        message.contains("Permission Denial", ignoreCase = true) ||
+                        message.contains("not exported", ignoreCase = true)
 
+            if (isUriPermissionDenial) {
+                Timber.w(e, "Content URI permission denied. Installer is likely hidden from initiator.")
+                throw ResolveException(
+                    errorType = ResolveErrorType.INITIATOR_NOT_VISIBLE,
+                    cause = e
+                )
+            }
+
+            // Rethrow if it doesn't match the signature or initiator is unknown
+            throw e
+        }
         // Resolve real path
         val fd = afd.parcelFileDescriptor.fd
         val procPath = "/proc/${Os.getpid()}/fd/$fd"

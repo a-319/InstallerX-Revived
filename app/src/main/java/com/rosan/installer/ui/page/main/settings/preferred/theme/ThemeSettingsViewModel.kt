@@ -12,7 +12,6 @@ import com.rosan.installer.domain.settings.repository.AppSettingsRepository
 import com.rosan.installer.domain.settings.repository.BooleanSetting
 import com.rosan.installer.domain.settings.repository.IntSetting
 import com.rosan.installer.domain.settings.repository.StringSetting
-import com.rosan.installer.domain.settings.usecase.settings.SetLauncherIconUseCase
 import com.rosan.installer.domain.settings.usecase.settings.UpdateSettingUseCase
 import com.rosan.installer.ui.theme.material.PresetColors
 import com.rosan.installer.ui.theme.material.RawColor
@@ -26,8 +25,7 @@ import kotlinx.coroutines.launch
 class ThemeSettingsViewModel(
     appSettingsRepo: AppSettingsRepository,
     systemEnvProvider: SystemEnvProvider,
-    private val updateSetting: UpdateSettingUseCase,
-    private val setLauncherIconUseCase: SetLauncherIconUseCase
+    private val updateSetting: UpdateSettingUseCase
 ) : ViewModel() {
 
     val state: StateFlow<ThemeSettingsState> = combine(
@@ -35,27 +33,29 @@ class ThemeSettingsViewModel(
         systemEnvProvider.getWallpaperColorsFlow().onStart { emit(emptyList()) }
     ) { prefs, wallpaperColors ->
         val manualSeedColor = Color(prefs.seedColorInt)
-        val effectiveSeedColor: Color = if (prefs.useDynamicColor && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            if (!wallpaperColors.isNullOrEmpty()) {
-                if (wallpaperColors.contains(manualSeedColor.toArgb())) {
-                    manualSeedColor
-                } else Color(wallpaperColors[0])
-            } else manualSeedColor
-        } else {
-            if (PresetColors.any { it.color == manualSeedColor }) manualSeedColor else PresetColors[0].color
-        }
 
-        val availableColors: List<RawColor> = if (prefs.useDynamicColor && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            if (!wallpaperColors.isNullOrEmpty()) {
-                wallpaperColors.map { colorInt ->
-                    RawColor(key = colorInt.toHexString(), color = Color(colorInt))
-                }
+        val effectiveSeedColor: Color =
+            if (prefs.useDynamicColor && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                if (!wallpaperColors.isNullOrEmpty()) {
+                    if (wallpaperColors.contains(manualSeedColor.toArgb())) {
+                        manualSeedColor
+                    } else Color(wallpaperColors[0])
+                } else manualSeedColor
+            } else if (PresetColors.any { it.color == manualSeedColor }) {
+                manualSeedColor
+            } else PresetColors[0].color
+
+        val availableColors: List<RawColor> =
+            if (prefs.useDynamicColor && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                if (!wallpaperColors.isNullOrEmpty()) {
+                    wallpaperColors.map { colorInt ->
+                        RawColor(key = colorInt.toHexString(), color = Color(colorInt))
+                    }
+                } else PresetColors
             } else PresetColors
-        } else PresetColors
 
         ThemeSettingsState(
             showMiuixUI = prefs.showMiuixUI,
-            showExpressiveUI = prefs.showExpressiveUI,
             useBlur = prefs.useBlur,
             themeMode = prefs.themeMode,
             paletteStyle = prefs.paletteStyle,
@@ -68,7 +68,6 @@ class ThemeSettingsViewModel(
             useDynColorFollowPkgIcon = prefs.useDynColorFollowPkgIcon,
             useDynColorFollowPkgIconForLiveActivity = prefs.useDynColorFollowPkgIconForLiveActivity,
             preferSystemIcon = prefs.preferSystemIcon,
-            showLauncherIcon = prefs.showLauncherIcon,
             showLiveActivity = prefs.showLiveActivity,
             predictiveBackAnimation = prefs.predictiveBackAnimation,
             predictiveBackExitDirection = prefs.predictiveBackExitDirection
@@ -82,18 +81,16 @@ class ThemeSettingsViewModel(
     fun dispatch(action: ThemeSettingsAction) {
         when (action) {
             is ThemeSettingsAction.ChangeUseMiuix -> viewModelScope.launch { updateSetting(BooleanSetting.UiUseMiuix, action.useMiuix) }
-            is ThemeSettingsAction.ChangeShowExpressiveUI -> viewModelScope.launch {
-                updateSetting(
-                    BooleanSetting.UiExpressiveSwitch,
-                    action.showRefreshedUI
-                )
-            }
-
             is ThemeSettingsAction.SetUseBlur -> viewModelScope.launch { updateSetting(BooleanSetting.UiUseBlur, action.enable) }
             is ThemeSettingsAction.SetThemeMode -> viewModelScope.launch { updateSetting(StringSetting.ThemeMode, action.mode.name) }
             is ThemeSettingsAction.SetPaletteStyle -> viewModelScope.launch { updateSetting(StringSetting.ThemePaletteStyle, action.style.name) }
             is ThemeSettingsAction.SetColorSpec -> viewModelScope.launch { updateSetting(StringSetting.ThemeColorSpec, action.spec.name) }
-            is ThemeSettingsAction.SetUseDynamicColor -> viewModelScope.launch { updateSetting(BooleanSetting.ThemeUseDynamicColor, action.use) }
+
+            is ThemeSettingsAction.SetUseDynamicColor -> viewModelScope.launch {
+                updateSetting(BooleanSetting.ThemeUseDynamicColor, action.use)
+                updateSetting(IntSetting.ThemeSeedColor, Int.MIN_VALUE)
+            }
+
             is ThemeSettingsAction.SetUseMiuixMonet -> viewModelScope.launch { updateSetting(BooleanSetting.UiUseMiuixMonet, action.use) }
             is ThemeSettingsAction.SetUseAppleFloatingBar -> viewModelScope.launch {
                 updateSetting(
@@ -124,7 +121,6 @@ class ThemeSettingsViewModel(
                 )
             }
 
-            is ThemeSettingsAction.ChangeShowLauncherIcon -> viewModelScope.launch { setLauncherIconUseCase(action.showLauncherIcon) }
             is ThemeSettingsAction.SetPredictiveBackAnimation -> viewModelScope.launch {
                 updateSetting(
                     StringSetting.PredictiveBackAnimation,

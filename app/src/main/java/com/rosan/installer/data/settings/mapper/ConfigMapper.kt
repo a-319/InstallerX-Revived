@@ -4,7 +4,7 @@ package com.rosan.installer.data.settings.mapper
 
 import com.rosan.installer.data.settings.local.room.entity.ConfigEntity
 import com.rosan.installer.data.settings.local.room.entity.ConfigWithScopeCount
-import com.rosan.installer.domain.settings.model.ConfigModel
+import com.rosan.installer.domain.settings.model.config.ConfigModel
 
 /**
  * Map Room database entity to pure business domain model
@@ -17,11 +17,13 @@ fun ConfigEntity.toDomainModel(scopeCount: Int = 0): ConfigModel {
         authorizer = this.authorizer,
         customizeAuthorizer = this.customizeAuthorizer,
         installMode = this.installMode,
-        showToast = this.showToast,
+        autoApproveSession = this.autoApproveSession,
+        toastMode = this.toastMode,
         enableCustomizeInstallReason = this.enableCustomizeInstallReason,
         installReason = this.installReason,
         enableCustomizePackageSource = this.enableCustomizePackageSource,
         packageSource = this.packageSource,
+        installRequesterMode = this.installRequesterMode,
         installRequester = this.installRequester,
         installerMode = this.installerMode,
         installer = this.installer,
@@ -39,6 +41,8 @@ fun ConfigEntity.toDomainModel(scopeCount: Int = 0): ConfigModel {
         allowDowngrade = this.allowDowngrade,
         bypassLowTargetSdk = this.bypassLowTargetSdk,
         allowAllRequestedPermissions = this.allowAllRequestedPermissions,
+        allowSigMismatch = this.allowSigMismatch,
+        allowSigUnknown = this.allowSigUnknown,
         requestUpdateOwnership = this.requestUpdateOwnership,
         splitChooseAll = this.splitChooseAll,
         apkChooseAll = this.apkChooseAll,
@@ -49,6 +53,7 @@ fun ConfigEntity.toDomainModel(scopeCount: Int = 0): ConfigModel {
         // Pass runtime flags directly into the constructor
         installFlags = this.installFlags,
         bypassBlacklistInstallSetByUser = this.bypassBlacklistInstallSetByUser,
+        bypassProfileRestriction = this.bypassProfileRestriction,
         uninstallFlags = this.uninstallFlags,
         callingFromUid = this.callingFromUid
     )
@@ -70,11 +75,13 @@ fun ConfigModel.toEntity(): ConfigEntity {
         authorizer = this.authorizer,
         customizeAuthorizer = this.customizeAuthorizer,
         installMode = this.installMode,
-        showToast = this.showToast,
+        autoApproveSession = this.autoApproveSession,
+        toastMode = this.toastMode,
         enableCustomizeInstallReason = this.enableCustomizeInstallReason,
         installReason = this.installReason,
         enableCustomizePackageSource = this.enableCustomizePackageSource,
         packageSource = this.packageSource,
+        installRequesterMode = this.installRequesterMode,
         installRequester = this.installRequester,
         installerMode = this.installerMode,
         installer = this.installer,
@@ -92,6 +99,8 @@ fun ConfigModel.toEntity(): ConfigEntity {
         allowDowngrade = this.allowDowngrade,
         bypassLowTargetSdk = this.bypassLowTargetSdk,
         allowAllRequestedPermissions = this.allowAllRequestedPermissions,
+        allowSigMismatch = this.allowSigMismatch,
+        allowSigUnknown = this.allowSigUnknown,
         requestUpdateOwnership = this.requestUpdateOwnership,
         splitChooseAll = this.splitChooseAll,
         apkChooseAll = this.apkChooseAll,
@@ -103,6 +112,7 @@ fun ConfigModel.toEntity(): ConfigEntity {
     // Transfer runtime flags
     entity.installFlags = this.installFlags
     entity.bypassBlacklistInstallSetByUser = this.bypassBlacklistInstallSetByUser
+    entity.bypassProfileRestriction = this.bypassProfileRestriction
     entity.uninstallFlags = this.uninstallFlags
     entity.callingFromUid = this.callingFromUid
 

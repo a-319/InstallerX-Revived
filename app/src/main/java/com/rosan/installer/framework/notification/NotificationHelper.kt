@@ -1,16 +1,20 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2023-2026 iamr0s, InstallerX Revived contributors
 package com.rosan.installer.framework.notification
 
 import android.app.PendingIntent
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.os.Build
 import androidx.annotation.DrawableRes
 import com.rosan.installer.R
 import com.rosan.installer.data.session.handler.BroadcastHandler
-import com.rosan.installer.domain.engine.model.AppEntity
-import com.rosan.installer.domain.engine.model.sortedBest
+import com.rosan.installer.domain.engine.model.packageinfo.AppEntity
+import com.rosan.installer.domain.engine.model.packageinfo.sortedBest
 import com.rosan.installer.domain.engine.usecase.GetAppIconUseCase
 import com.rosan.installer.domain.session.repository.InstallerSessionRepository
-import com.rosan.installer.domain.settings.model.Authorizer
+import com.rosan.installer.domain.settings.model.config.Authorizer
 
 class NotificationHelper(
     private val context: Context,
@@ -29,11 +33,28 @@ class NotificationHelper(
         Pausing(R.drawable.round_hourglass_disabled_24)
     }
 
-    val openIntent: PendingIntent = BroadcastHandler.Companion.openIntent(context, session)
-    val analyseIntent: PendingIntent = BroadcastHandler.Companion.namedIntent(context, session, BroadcastHandler.Name.Analyse)
-    val installIntent: PendingIntent = BroadcastHandler.Companion.namedIntent(context, session, BroadcastHandler.Name.Install)
-    val cancelIntent: PendingIntent = BroadcastHandler.Companion.namedIntent(context, session, BroadcastHandler.Name.Cancel)
-    val finishIntent: PendingIntent = BroadcastHandler.Companion.namedIntent(context, session, BroadcastHandler.Name.Finish)
+    val openIntent: PendingIntent = BroadcastHandler.openIntent(context, session)
+    val analyseIntent: PendingIntent = BroadcastHandler.namedIntent(context, session, BroadcastHandler.Name.Analyse)
+    val installIntent: PendingIntent = BroadcastHandler.namedIntent(context, session, BroadcastHandler.Name.Install)
+    val unknownSourceIntent: PendingIntent = BroadcastHandler.openIntent(context, session)
+    val cancelIntent: PendingIntent = BroadcastHandler.namedIntent(context, session, BroadcastHandler.Name.Cancel)
+    val finishIntent: PendingIntent = BroadcastHandler.namedIntent(context, session, BroadcastHandler.Name.Finish)
+
+    fun unknownSourceDescription(): String =
+        context.getString(R.string.installer_waiting_unknown_source_desc, sourceAppLabel())
+
+    @Suppress("DEPRECATION")
+    private fun sourceAppLabel(): CharSequence {
+        val packageName = session.config.initiatorPackageName ?: return context.getString(R.string.installer_label_unknown)
+        return runCatching {
+            val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0))
+            } else {
+                context.packageManager.getApplicationInfo(packageName, 0)
+            }
+            context.packageManager.getApplicationLabel(appInfo)
+        }.getOrNull() ?: context.getString(R.string.installer_label_unknown)
+    }
 
     // Resolve specific launch intent considering privileged access
     fun getLaunchPendingIntent(packageName: String?): PendingIntent? {
@@ -48,9 +69,9 @@ class NotificationHelper(
         )
 
         return if (supportsPrivileged) {
-            BroadcastHandler.Companion.privilegedLaunchAndFinishIntent(context, session)
+            BroadcastHandler.privilegedLaunchAndFinishIntent(context, session)
         } else {
-            BroadcastHandler.Companion.launchIntent(context, session, launchIntent)
+            BroadcastHandler.launchIntent(context, session, launchIntent)
         }
     }
 

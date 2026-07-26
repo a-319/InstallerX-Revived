@@ -1,6 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2025-2026 InstallerX Revived contributors
 package com.rosan.installer.ui.util
 
-import com.rosan.installer.domain.settings.model.Authorizer
+import com.rosan.installer.domain.settings.model.config.Authorizer
 
 /**
  * Returns true if the Dhizuku authorizer is active, which disables certain features.
@@ -25,3 +27,12 @@ fun isNoneActive(
     Authorizer.Global -> globalAuthorizer == Authorizer.None
     else -> false
 }
+
+/**
+ * Returns true if the effective None authorizer is backed by system package installer privileges.
+ */
+fun isSystemPackageInstallerActive(
+    stateAuthorizer: Authorizer,
+    globalAuthorizer: Authorizer,
+    isSystemApp: Boolean
+) = isSystemApp && isNoneActive(stateAuthorizer, globalAuthorizer)

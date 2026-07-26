@@ -1,69 +1,71 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 InstallerX Revived contributors
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.rosan.installer.ui.page.main.settings.preferred.installer.notification
 
 import android.os.Build
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rosan.installer.R
 import com.rosan.installer.domain.device.provider.DeviceCapabilityProvider
 import com.rosan.installer.ui.icons.AppIcons
 import com.rosan.installer.ui.navigation.LocalNavigator
-import com.rosan.installer.ui.page.main.settings.preferred.AutoClearNotificationTimeWidget
-import com.rosan.installer.ui.page.main.widget.setting.AppBackButton
+import com.rosan.installer.ui.page.main.widget.setting.BaseItemContainer
 import com.rosan.installer.ui.page.main.widget.setting.DropDownMenuWidget
+import com.rosan.installer.ui.page.main.widget.setting.ExpressiveBackButton
 import com.rosan.installer.ui.page.main.widget.setting.IntNumberPickerWidget
-import com.rosan.installer.ui.page.main.widget.setting.LabelWidget
+import com.rosan.installer.ui.page.main.widget.setting.SegmentedColumn
 import com.rosan.installer.ui.page.main.widget.setting.SwitchWidget
-import com.rosan.installer.ui.theme.none
+import com.rosan.installer.ui.theme.getMaterial3AppBarColor
+import com.rosan.installer.ui.theme.installerMaterial3BlurEffect
+import com.rosan.installer.ui.theme.rememberMaterial3BlurBackdrop
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun NotificationSettingsPage(
+    useBlur: Boolean,
     viewModel: NotificationSettingsViewModel = koinViewModel()
 ) {
     val navigator = LocalNavigator.current
     val uiState by viewModel.state.collectAsStateWithLifecycle()
     val capabilityProvider = koinInject<DeviceCapabilityProvider>()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
-    val layoutDirection = LocalLayoutDirection.current
-    val horizontalSafeInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal).asPaddingValues()
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(topAppBarState)
+
+    LaunchedEffect(Unit) {
+        topAppBarState.heightOffset = topAppBarState.heightOffsetLimit
+    }
 
     val isModernEligible = Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
     val isMiIslandSupported = capabilityProvider.isSupportMiIsland
 
-    // Dynamically build the dropdown options based on device capabilities
     val styleOptions = remember(isModernEligible, isMiIslandSupported) {
         val list = mutableListOf(NotificationStyle.STANDARD)
         if (isModernEligible) list.add(NotificationStyle.LIVE_ACTIVITY)
@@ -86,129 +88,199 @@ fun NotificationSettingsPage(
     }
     val selectedIndex = styleOptions.indexOf(activeStyle).coerceAtLeast(0)
 
+    val backdrop = rememberMaterial3BlurBackdrop(useBlur)
+
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        contentWindowInsets = WindowInsets.none,
+        modifier = Modifier
+            .nestedScroll(scrollBehavior.nestedScrollConnection)
+            .fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.notification_settings)) },
-                navigationIcon = {
-                    AppBackButton(onClick = { navigator.pop() })
+            LargeFlexibleTopAppBar(
+                modifier = Modifier.installerMaterial3BlurEffect(backdrop),
+                windowInsets = TopAppBarDefaults.windowInsets.add(WindowInsets(left = 12.dp)),
+                title = {
+                    Text(stringResource(R.string.notification_settings))
                 },
-                scrollBehavior = scrollBehavior
+                navigationIcon = {
+                    Row {
+                        ExpressiveBackButton { navigator.pop() }
+                        Spacer(modifier = Modifier.size(16.dp))
+                    }
+                },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = backdrop.getMaterial3AppBarColor(),
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    scrolledContainerColor = backdrop.getMaterial3AppBarColor()
+                )
             )
         }
     ) { paddingValues ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = horizontalSafeInsets.calculateStartPadding(layoutDirection),
-                top = paddingValues.calculateTopPadding(),
-                end = horizontalSafeInsets.calculateEndPadding(layoutDirection),
-                bottom = paddingValues.calculateBottomPadding()
-            )
+            modifier = Modifier
+                .fillMaxSize()
+                .then(backdrop?.let { Modifier.layerBackdrop(it) } ?: Modifier),
+            contentPadding = paddingValues
         ) {
-            // 1. Notification Style Dropdown
-            item { LabelWidget(stringResource(R.string.notification_style)) }
             item {
-                val isStyleSelectionEnabled = isModernEligible || isMiIslandSupported
-                DropDownMenuWidget(
-                    icon = AppIcons.Palette,
-                    title = stringResource(R.string.notification_style),
-                    description = if (isStyleSelectionEnabled) styleNames[selectedIndex] else stringResource(R.string.notification_style_unsupported_desc),
-                    enabled = isStyleSelectionEnabled,
-                    choice = selectedIndex,
-                    data = styleNames,
-                    onChoiceChange = { index ->
-                        val selectedStyle = styleOptions[index]
-                        viewModel.dispatch(NotificationSettingsAction.ChangeStyle(selectedStyle))
-                    }
-                )
-            }
-
-            // 2. Mi Island Blocking Interval (Visible only if Mi Island is selected)
-            item {
-                AnimatedVisibility(
-                    visible = activeStyle == NotificationStyle.MI_ISLAND,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
+                SegmentedColumn(
+                    title = stringResource(R.string.notification_style)
                 ) {
-                    SwitchWidget(
-                        icon = AppIcons.Bypass,
-                        title = stringResource(id = R.string.lab_mi_island_bypass_restriction),
-                        description = stringResource(id = R.string.lab_mi_island_bypass_restriction_desc),
-                        checked = uiState.miIslandBypassRestriction,
-                        isM3E = false,
-                        onCheckedChange = {
-                            viewModel.dispatch(NotificationSettingsAction.ChangeMiIslandBypassRestriction(it))
+                    item {
+                        val isStyleSelectionEnabled = isModernEligible || isMiIslandSupported
+                        DropDownMenuWidget(
+                            icon = AppIcons.Palette,
+                            title = stringResource(R.string.notification_style),
+                            description = if (isStyleSelectionEnabled) styleNames[selectedIndex] else stringResource(
+                                R.string.notification_style_unsupported_desc
+                            ),
+                            enabled = isStyleSelectionEnabled,
+                            choice = selectedIndex,
+                            data = styleNames,
+                            onChoiceChange = { index ->
+                                val selectedStyle = styleOptions[index]
+                                viewModel.dispatch(
+                                    NotificationSettingsAction.ChangeStyle(
+                                        selectedStyle
+                                    )
+                                )
+                            }
+                        )
+                    }
+                    item(animatedVisibility = activeStyle == NotificationStyle.MI_ISLAND) {
+                        SwitchWidget(
+                            icon = AppIcons.Bypass,
+                            title = stringResource(id = R.string.lab_mi_island_bypass_restriction),
+                            description = stringResource(id = R.string.lab_mi_island_bypass_restriction_desc),
+                            checked = uiState.miIslandBypassRestriction,
+                            onCheckedChange = {
+                                viewModel.dispatch(
+                                    NotificationSettingsAction.ChangeMiIslandBypassRestriction(
+                                        it
+                                    )
+                                )
+                            }
+                        )
+                    }
+                    item(animatedVisibility = activeStyle == NotificationStyle.MI_ISLAND && uiState.miIslandBypassRestriction) {
+                        BaseItemContainer {
+                            IntNumberPickerWidget(
+                                icon = AppIcons.StopWatch,
+                                title = stringResource(R.string.lab_mi_island_countdown),
+                                description = stringResource(R.string.lab_mi_island_countdown_desc),
+                                value = uiState.miIslandBlockingInterval,
+                                startInt = 50,
+                                endInt = 350,
+                                onValueChange = {
+                                    viewModel.dispatch(
+                                        NotificationSettingsAction.ChangeMiIslandBlockingInterval(
+                                            it
+                                        )
+                                    )
+                                }
+                            )
                         }
-                    )
+                    }
+                    item(animatedVisibility = activeStyle == NotificationStyle.MI_ISLAND) {
+                        SwitchWidget(
+                            icon = AppIcons.Glow,
+                            title = stringResource(id = R.string.lab_mi_island_outer_glow),
+                            description = stringResource(id = R.string.lab_mi_island_outer_glow_desc),
+                            checked = uiState.miIslandOuterGlow,
+                            onCheckedChange = {
+                                viewModel.dispatch(
+                                    NotificationSettingsAction.ChangeMiIslandOuterGlow(
+                                        it
+                                    )
+                                )
+                            }
+                        )
+                    }
                 }
             }
             item {
-                AnimatedVisibility(
-                    visible = activeStyle == NotificationStyle.MI_ISLAND && uiState.miIslandBypassRestriction,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
+                SegmentedColumn(
+                    title = stringResource(R.string.config_label_preferences)
                 ) {
-                    IntNumberPickerWidget(
-                        icon = AppIcons.StopWatch,
-                        title = stringResource(R.string.lab_mi_island_countdown),
-                        description = stringResource(R.string.lab_mi_island_countdown_desc),
-                        value = uiState.miIslandBlockingInterval,
-                        startInt = 50,
-                        endInt = 350
-                    ) {
-                        viewModel.dispatch(NotificationSettingsAction.ChangeMiIslandBlockingInterval(it))
+                    item {
+                        SwitchWidget(
+                            icon = AppIcons.Dialog,
+                            title = stringResource(id = R.string.show_dialog_when_pressing_notification),
+                            description = stringResource(id = R.string.change_notification_touch_behavior),
+                            checked = uiState.showDialogOnPress,
+                            onCheckedChange = {
+                                viewModel.dispatch(
+                                    NotificationSettingsAction.ChangeShowDialogOnPress(
+                                        it
+                                    )
+                                )
+                            }
+                        )
+                    }
+
+                    item {
+                        AutoClearNotificationTimeWidget(
+                            currentValue = uiState.successAutoClearSeconds,
+                            onValueChange = { seconds ->
+                                viewModel.dispatch(
+                                    NotificationSettingsAction.ChangeAutoClearSeconds(
+                                        seconds
+                                    )
+                                )
+                            }
+                        )
                     }
                 }
             }
 
-            item {
-                AnimatedVisibility(
-                    visible = activeStyle == NotificationStyle.MI_ISLAND,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
-                ) {
-                    SwitchWidget(
-                        icon = AppIcons.Glow,
-                        title = stringResource(id = R.string.lab_mi_island_outer_glow),
-                        description = stringResource(id = R.string.lab_mi_island_outer_glow_desc),
-                        checked = uiState.miIslandOuterGlow,
-                        isM3E = false,
-                        onCheckedChange = {
-                            viewModel.dispatch(NotificationSettingsAction.ChangeMiIslandOuterGlow(it))
-                        }
-                    )
-                }
-            }
-
-            item { LabelWidget(stringResource(R.string.config_label_preferences)) }
-            // 3. Migrated Setting: Auto Clear Seconds
-            item {
-                AutoClearNotificationTimeWidget(
-                    currentValue = uiState.successAutoClearSeconds,
-                    onValueChange = { seconds ->
-                        viewModel.dispatch(NotificationSettingsAction.ChangeAutoClearSeconds(seconds))
-                    }
-                )
-            }
-
-            // 4. Migrated Setting: Show Dialog When Pressing Notification
-            item {
-                SwitchWidget(
-                    icon = AppIcons.Dialog,
-                    title = stringResource(id = R.string.show_dialog_when_pressing_notification),
-                    description = stringResource(id = R.string.change_notification_touch_behavior),
-                    checked = uiState.showDialogOnPress,
-                    isM3E = false,
-                    onCheckedChange = {
-                        viewModel.dispatch(NotificationSettingsAction.ChangeShowDialogOnPress(it))
-                    }
-                )
-            }
-
-            item { Spacer(Modifier.navigationBarsPadding()) }
         }
     }
+}
+
+/**
+ * A DropDownMenuWidget for selecting the auto-clear time for success notifications.
+ */
+@Composable
+private fun AutoClearNotificationTimeWidget(
+    currentValue: Int,
+    onValueChange: (Int) -> Unit
+) {
+    val options = remember { listOf(0, 3, 5, 10, 15, 20, 30) }
+
+    val selectedIndex = remember(currentValue, options) {
+        options.indexOf(currentValue).coerceAtLeast(0)
+    }
+    val currentOption = options.getOrElse(selectedIndex) { 0 }
+
+    val descriptionText = if (currentOption == 0) {
+        stringResource(R.string.installer_settings_auto_clear_time_never_desc)
+    } else {
+        stringResource(
+            R.string.installer_settings_auto_clear_time_seconds_format_desc,
+            currentOption
+        )
+    }
+
+    val dropdownItems = options.map { time ->
+        if (time == 0) {
+            stringResource(R.string.installer_settings_auto_clear_time_never)
+        } else {
+            stringResource(R.string.installer_settings_auto_clear_time_seconds_format, time)
+        }
+    }
+
+    DropDownMenuWidget(
+        icon = AppIcons.Timer,
+        title = stringResource(id = R.string.installer_settings_auto_clear_success_notification),
+        description = descriptionText,
+        choice = selectedIndex,
+        data = dropdownItems,
+        onChoiceChange = { newIndex ->
+            val newValue = options.getOrElse(newIndex) { 0 }
+            if (currentValue != newValue) {
+                onValueChange(newValue)
+            }
+        }
+    )
 }

@@ -3,12 +3,12 @@
 package com.rosan.installer.domain.engine.usecase
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import android.os.Build
 import android.os.Bundle
-import com.rosan.installer.data.privileged.util.useUserService
-import com.rosan.installer.domain.device.provider.DeviceCapabilityProvider
+import com.rosan.installer.domain.engine.provider.SessionDetailsProvider
 import com.rosan.installer.domain.session.model.ConfirmationDetails
-import com.rosan.installer.domain.settings.model.ConfigModel
+import com.rosan.installer.domain.session.model.ConfirmationRequestType
+import com.rosan.installer.domain.settings.model.config.ConfigModel
 import timber.log.Timber
 
 /**
@@ -16,7 +16,7 @@ import timber.log.Timber
  * Utilizes IPC services depending on the application's current authorization level.
  */
 class GetSessionConfirmationDetailsUseCase(
-    private val capabilityProvider: DeviceCapabilityProvider
+    private val sessionDetailsProvider: SessionDetailsProvider
 ) {
     /**
      * Retrieves session details based on the provided configuration.
@@ -24,6 +24,7 @@ class GetSessionConfirmationDetailsUseCase(
     operator fun invoke(
         sessionId: Int,
         config: ConfigModel,
+        requestType: ConfirmationRequestType,
         isSelfSession: Boolean = false,
         currentProgress: Int = 1,
         totalProgress: Int = 1
@@ -33,18 +34,15 @@ class GetSessionConfirmationDetailsUseCase(
         var packageName = ""
         var isUpdate = false
         var isOwnershipConflict = false
+        var isPreApprovalRequested = false
         var sourceAppLabel: CharSequence? = null
+        var installerPackageName: String? = null
 
         Timber.d("Getting session details via service (Authorizer: ${config.authorizer})")
 
         var bundle: Bundle? = null
         try {
-            useUserService(
-                isSystemApp = capabilityProvider.isSystemApp,
-                authorizer = config.authorizer,
-                customizeAuthorizer = config.customizeAuthorizer,
-                useHookMode = false
-            ) { bundle = it.privileged.getSessionDetails(sessionId) }
+            bundle = sessionDetailsProvider.getSessionDetails(sessionId, config)
         } catch (e: Exception) {
             Timber.e(e, "Failed to get session details via ${config.authorizer}")
         }
@@ -54,15 +52,19 @@ class GetSessionConfirmationDetailsUseCase(
             packageName = bundle.getString("packageName", "")
             isUpdate = bundle.getBoolean("isUpdate", false)
             isOwnershipConflict = bundle.getBoolean("isOwnershipConflict", false)
+            isPreApprovalRequested = bundle.getBoolean("isPreApprovalRequested", false)
             sourceAppLabel = bundle.getCharSequence("sourceAppLabel")
+            installerPackageName = bundle.getString("installerPackageName")
 
-            val bytes = bundle.getByteArray("appIcon")
-            if (bytes != null) {
-                try {
-                    icon = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                } catch (e: Exception) {
-                    Timber.e(e, "Failed to decode icon bitmap")
+            try {
+                icon = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    bundle.getParcelable("appIcon", Bitmap::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    bundle.getParcelable("appIcon") as? Bitmap
                 }
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to extract icon bitmap from bundle")
             }
         } else {
             Timber.w("Service returned null bundle for session $sessionId")
@@ -76,6 +78,9 @@ class GetSessionConfirmationDetailsUseCase(
             isUpdate = isUpdate,
             isOwnershipConflict = isOwnershipConflict,
             sourceAppLabel = sourceAppLabel,
+            installerPackageName = installerPackageName,
+            requestType = requestType,
+            isPreApprovalRequested = isPreApprovalRequested,
             isSelfSession = isSelfSession,
             currentProgress = currentProgress,
             totalProgress = totalProgress
