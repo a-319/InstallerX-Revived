@@ -65,7 +65,7 @@ android {
         applicationId = project.findProperty("APP_ID") as String?
             ?: "com.rosan.installer.x.revived"
         namespace = "com.rosan.installer"
-        minSdk = 26
+        minSdk = 21
         targetSdk = 37
         // Version control:
         // - versionName is auto-generated as "yy.MM" by default,
