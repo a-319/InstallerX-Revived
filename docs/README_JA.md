@@ -33,7 +33,7 @@
 ## サポートされているAndroidバージョン
 
 - **完全サポート：** Android SDK 34 - 36.1 (Android 14 - 16)
-- **限定サポート：** Android SDK 23 - 33 (Android 6.0 - 13) (不具合があれば報告してください。Dhizuku は Android 8.0 以上が必要です)
+- **限定サポート：** Android SDK 23 - 33 (Android 6.0 - 13) (不具合があれば報告してください)
 
 ## 主な変更点と新機能
 

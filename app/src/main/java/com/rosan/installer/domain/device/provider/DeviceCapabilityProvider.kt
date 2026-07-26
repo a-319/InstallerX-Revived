@@ -9,12 +9,6 @@ interface DeviceCapabilityProvider {
     val isSessionInstallSupported: Boolean
     val hasMiPackageInstaller: Boolean
 
-    /**
-     * Dhizuku (device-owner based install) requires Android 8.0+,
-     * both in the Dhizuku app itself and in Dhizuku-API 2.5.4+.
-     */
-    val isDhizukuSupported: Boolean
-
     val isSystemApp: Boolean
     val isHyperOS: Boolean
     val isMIUI: Boolean

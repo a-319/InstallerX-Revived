@@ -33,7 +33,7 @@ En comparación con los instaladores de stock, **InstallerX Revived** ofrece má
 ## Versiones compatibles
 
 - **Soporte completo:** Android SDK 34 - 36.1 (Android 14 - 16)
-- **Soporte limitado:** Android SDK 23 - 33 (Android 6.0 - 13) (por favor, reporta problemas; Dhizuku requiere Android 8.0+).
+- **Soporte limitado:** Android SDK 23 - 33 (Android 6.0 - 13) (por favor, reporta problemas).
 
 ## Cambios clave y características
 
