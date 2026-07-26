@@ -37,6 +37,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./gradlew assembleOnlinePreviewDebug assembleOfflinePreviewDebug -PAPP_ID="com.rosan.installer.x.revived.test"
 
+      - name: Lint NewApi report (temporary)
+        if: always()
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew :app:lintOnlinePreviewDebug -PAPP_ID="com.rosan.installer.x.revived.test" || true
+          echo "===== NewApi issues ====="
+          grep -A12 'id="NewApi"' app/build/reports/lint-results-onlinePreviewDebug.xml || echo "no NewApi issues found"
+
       - name: Upload Online APK
         uses: actions/upload-artifact@v7
         with:
