@@ -19,22 +19,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rosan.installer.R
 import com.rosan.installer.domain.device.provider.DeviceCapabilityProvider
-import com.rosan.installer.domain.settings.model.Authorizer
-import com.rosan.installer.domain.settings.model.DexoptMode
-import com.rosan.installer.domain.settings.model.InstallMode
-import com.rosan.installer.domain.settings.model.InstallReason
-import com.rosan.installer.domain.settings.model.InstallerMode
-import com.rosan.installer.domain.settings.model.PackageSource
+import com.rosan.installer.domain.settings.model.config.Authorizer
+import com.rosan.installer.domain.settings.model.config.DexoptMode
+import com.rosan.installer.domain.settings.model.config.InstallMode
+import com.rosan.installer.domain.settings.model.config.InstallReason
+import com.rosan.installer.domain.settings.model.config.InstallRequesterMode
+import com.rosan.installer.domain.settings.model.config.InstallerMode
+import com.rosan.installer.domain.settings.model.config.PackageSource
+import com.rosan.installer.domain.settings.model.config.ToastMode
 import com.rosan.installer.ui.icons.AppIcons
 import com.rosan.installer.ui.page.main.settings.config.edit.EditViewAction
 import com.rosan.installer.ui.page.main.settings.config.edit.EditViewState
+import com.rosan.installer.ui.page.main.settings.config.edit.dhizukuAwareDescription
 import com.rosan.installer.ui.page.miuix.widgets.MiuixHintTextField
 import com.rosan.installer.ui.page.miuix.widgets.MiuixSwitchWidget
-import com.rosan.installer.ui.util.isDhizukuActive
+import com.rosan.installer.ui.util.isSystemPackageInstallerActive
 import org.koin.compose.koinInject
-import top.yukonga.miuix.kmp.basic.SpinnerEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -72,41 +76,67 @@ fun MiuixDataDescriptionWidget(state: EditViewState, dispatch: (EditViewAction) 
 }
 
 @Composable
-fun MiuixDataAuthorizerWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
+fun MiuixDataAuthorizerWidget(
+    state: EditViewState,
+    dispatch: (EditViewAction) -> Unit,
+) {
     val capabilityProvider = koinInject<DeviceCapabilityProvider>()
+
     val stateAuthorizer = state.data.authorizer
     val globalAuthorizer = state.globalAuthorizer
-    val isSessionInstallSupported = capabilityProvider.isSessionInstallSupported
-    val data = buildMap {
-        put(
-            Authorizer.Global, stringResource(
-                R.string.config_authorizer_global_desc,
-                when (globalAuthorizer) {
-                    Authorizer.None -> stringResource(R.string.config_authorizer_none)
-                    Authorizer.Root -> stringResource(R.string.config_authorizer_root)
-                    Authorizer.Shizuku -> stringResource(R.string.config_authorizer_shizuku)
-                    Authorizer.Dhizuku -> stringResource(R.string.config_authorizer_dhizuku)
-                    Authorizer.Customize -> stringResource(R.string.config_authorizer_customize)
-                    else -> stringResource(R.string.config_authorizer_global)
-                }
-            )
-        )
-        if (isSessionInstallSupported)
-            put(Authorizer.None, stringResource(R.string.config_authorizer_none))
-        put(Authorizer.Root, stringResource(R.string.config_authorizer_root))
-        put(Authorizer.Shizuku, stringResource(R.string.config_authorizer_shizuku))
-        put(Authorizer.Dhizuku, stringResource(R.string.config_authorizer_dhizuku))
-        put(Authorizer.Customize, stringResource(R.string.config_authorizer_customize))
-    }
 
-    val spinnerEntries = remember(data) {
-        data.values.map { authorizerName ->
-            SpinnerEntry(title = authorizerName)
+    val authorizers = remember(capabilityProvider.isSessionInstallSupported) {
+        buildList {
+            add(Authorizer.Global)
+
+            if (capabilityProvider.isSessionInstallSupported) {
+                add(Authorizer.None)
+            }
+
+            addAll(
+                listOf(
+                    Authorizer.Root,
+                    Authorizer.Shizuku,
+                    Authorizer.Dhizuku,
+                    Authorizer.Customize,
+                )
+            )
         }
     }
 
-    val selectedIndex = remember(stateAuthorizer, data) {
-        data.keys.toList().indexOf(stateAuthorizer).coerceAtLeast(0)
+    val authorizerNames = authorizers.map { authorizer ->
+        when (authorizer) {
+            Authorizer.Global -> {
+                // Dynamically resolve the global authorizer's name
+                val globalName = if (globalAuthorizer == Authorizer.None && capabilityProvider.isSystemApp) {
+                    stringResource(R.string.working_status_system_installer)
+                } else {
+                    stringResource(globalAuthorizer.displayNameRes)
+                }
+                stringResource(R.string.config_authorizer_global_desc, globalName)
+            }
+
+            Authorizer.None -> {
+                // Check if it should be displayed as system installer
+                if (capabilityProvider.isSystemApp) {
+                    stringResource(R.string.working_status_system_installer)
+                } else {
+                    stringResource(authorizer.displayNameRes)
+                }
+            }
+
+            else -> stringResource(authorizer.displayNameRes)
+        }
+    }
+
+    val spinnerEntries = remember(authorizerNames) {
+        authorizerNames.map { authorizerName ->
+            DropdownItem(title = authorizerName)
+        }
+    }
+
+    val selectedIndex = remember(stateAuthorizer, authorizers) {
+        authorizers.indexOf(stateAuthorizer).coerceAtLeast(0)
     }
 
     WindowSpinnerPreference(
@@ -115,7 +145,7 @@ fun MiuixDataAuthorizerWidget(state: EditViewState, dispatch: (EditViewAction) -
         items = spinnerEntries,
         selectedIndex = selectedIndex,
         onSelectedIndexChange = { newIndex ->
-            data.keys.elementAtOrNull(newIndex)?.let { authorizer ->
+            authorizers.getOrNull(newIndex)?.let { authorizer ->
                 dispatch(EditViewAction.ChangeDataAuthorizer(authorizer))
             }
         }
@@ -133,7 +163,7 @@ fun MiuixDataCustomizeAuthorizerWidget(state: EditViewState, dispatch: (EditView
             .focusable(),
         value = customizeAuthorizer,
         onValueChange = { dispatch(EditViewAction.ChangeDataCustomizeAuthorizer(it)) },
-        label = stringResource(id = R.string.config_customize_authorizer),
+        label = stringResource(id = R.string.config_authorizer_customize),
         useLabelAsPlaceholder = true,
         singleLine = false,
         maxLines = 8
@@ -153,7 +183,7 @@ fun MiuixDataInstallModeWidget(state: EditViewState, dispatch: (EditViewAction) 
 
     val spinnerEntries = remember(data) {
         data.values.map { modeName ->
-            SpinnerEntry(title = modeName)
+            DropdownItem(title = modeName)
         }
     }
 
@@ -174,13 +204,69 @@ fun MiuixDataInstallModeWidget(state: EditViewState, dispatch: (EditViewAction) 
 }
 
 @Composable
-fun MiuixShowToastWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
+fun MiuixDataAutoApproveSessionWidget(
+    state: EditViewState,
+    dispatch: (EditViewAction) -> Unit,
+    onEnableRequest: () -> Unit
+) {
+    val isDhizuku = state.isDhizukuAuthorizerActive
+    val enabled = !isDhizuku && !state.labRespectPlatformInstallPolicy
     MiuixSwitchWidget(
-        title = stringResource(id = R.string.config_install_show_toast),
-        description = stringResource(R.string.config_install_show_toast_desc),
-        checked = state.data.showToast,
-        onCheckedChange = {
-            dispatch(EditViewAction.ChangeDataShowToast(it))
+        icon = AppIcons.InstallMode,
+        title = stringResource(id = R.string.config_auto_approve_session),
+        description = stringResource(
+            id = state.dhizukuAwareDescriptionRes(
+                if (state.labRespectPlatformInstallPolicy) {
+                    R.string.config_auto_approve_session_disabled_desc
+                } else {
+                    R.string.config_auto_approve_session_desc
+                }
+            )
+        ),
+        enabled = enabled,
+        checked = state.data.autoApproveSession,
+        onCheckedChange = { checked ->
+            if (checked) {
+                onEnableRequest()
+            } else {
+                dispatch(EditViewAction.ChangeDataAutoApproveSession(false))
+            }
+        }
+    )
+}
+
+@Composable
+fun MiuixToastModeWidget(
+    state: EditViewState,
+    dispatch: (EditViewAction) -> Unit
+) {
+    val currentMode = state.data.toastMode
+
+    val data = mapOf(
+        ToastMode.Disable to stringResource(R.string.config_toast_mode_disable),
+        ToastMode.BackgroundOnly to stringResource(R.string.config_toast_mode_background_only),
+        ToastMode.Always to stringResource(R.string.config_toast_mode_always)
+    )
+
+    val spinnerEntries = remember(data) {
+        data.values.map { modeName ->
+            DropdownItem(title = modeName)
+        }
+    }
+
+    val selectedIndex = remember(currentMode, data) {
+        data.keys.toList().indexOf(currentMode).coerceAtLeast(0)
+    }
+
+    WindowSpinnerPreference(
+        title = stringResource(R.string.config_install_show_toast),
+        summary = stringResource(R.string.config_install_show_toast_desc),
+        items = spinnerEntries,
+        selectedIndex = selectedIndex,
+        onSelectedIndexChange = { newIndex ->
+            data.keys.elementAtOrNull(newIndex)?.let { mode ->
+                dispatch(EditViewAction.ChangeDataToastMode(mode))
+            }
         }
     )
 }
@@ -188,23 +274,36 @@ fun MiuixShowToastWidget(state: EditViewState, dispatch: (EditViewAction) -> Uni
 @Composable
 fun MiuixInstallReasonWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
     val enableCustomizeInstallReason = state.data.enableCustomizeInstallReason
-    val currentInstallReason = state.data.installReason
+    val enabled = !state.labRespectPlatformInstallPolicy
+    val expanded = enabled && enableCustomizeInstallReason
+    val currentInstallReason = if (state.labRespectPlatformInstallPolicy) {
+        InstallReason.USER
+    } else {
+        state.data.installReason
+    }
 
-    val description = stringResource(id = R.string.config_customize_install_reason_desc)
+    val description = stringResource(
+        id = if (enabled) {
+            R.string.config_customize_install_reason_desc
+        } else {
+            R.string.config_customize_install_reason_disabled_desc
+        }
+    )
 
     Column {
         MiuixSwitchWidget(
             icon = AppIcons.InstallReason,
             title = stringResource(id = R.string.config_customize_install_reason),
             description = description,
-            checked = enableCustomizeInstallReason,
+            enabled = enabled,
+            checked = expanded,
             onCheckedChange = {
                 dispatch(EditViewAction.ChangeDataEnableCustomizeInstallReason(it))
             }
         )
 
         AnimatedVisibility(
-            visible = enableCustomizeInstallReason,
+            visible = expanded,
             enter = expandVertically() + fadeIn(),
             exit = shrinkVertically() + fadeOut()
         ) {
@@ -217,7 +316,7 @@ fun MiuixInstallReasonWidget(state: EditViewState, dispatch: (EditViewAction) ->
             )
 
             val spinnerEntries = remember(data) {
-                data.values.map { sourceName -> SpinnerEntry(title = sourceName) }
+                data.values.map { sourceName -> DropdownItem(title = sourceName) }
             }
 
             val selectedIndex = remember(currentInstallReason, data) {
@@ -227,6 +326,7 @@ fun MiuixInstallReasonWidget(state: EditViewState, dispatch: (EditViewAction) ->
             WindowSpinnerPreference(
                 title = stringResource(R.string.config_install_reason),
                 items = spinnerEntries,
+                enabled = enabled,
                 selectedIndex = selectedIndex,
                 onSelectedIndexChange = { newIndex ->
                     data.keys.elementAtOrNull(newIndex)?.let { reason ->
@@ -240,28 +340,29 @@ fun MiuixInstallReasonWidget(state: EditViewState, dispatch: (EditViewAction) ->
 
 @Composable
 fun MiuixDataPackageSourceWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
-    val stateAuthorizer = state.data.authorizer
-    val globalAuthorizer = state.globalAuthorizer
     val enableCustomizePackageSource = state.data.enableCustomizePackageSource
     val currentSource = state.data.packageSource
+    val enabled = !state.labRespectPlatformInstallPolicy
 
-    val description =
-        if (isDhizukuActive(stateAuthorizer, globalAuthorizer)) stringResource(R.string.dhizuku_cannot_set_package_source_desc)
-        else stringResource(id = R.string.config_customize_package_source_desc)
+    val description = when {
+        state.labRespectPlatformInstallPolicy ->
+            stringResource(R.string.config_customize_package_source_disabled_desc)
+        else -> stringResource(id = R.string.config_customize_package_source_desc)
+    }
 
     Column {
         MiuixSwitchWidget(
             title = stringResource(id = R.string.config_customize_package_source),
             description = description,
             checked = enableCustomizePackageSource,
-            enabled = !isDhizukuActive(stateAuthorizer, globalAuthorizer),
+            enabled = enabled,
             onCheckedChange = {
                 dispatch(EditViewAction.ChangeDataEnableCustomizePackageSource(it))
             }
         )
 
         AnimatedVisibility(
-            visible = enableCustomizePackageSource,
+            visible = enabled && enableCustomizePackageSource,
             enter = expandVertically() + fadeIn(),
             exit = shrinkVertically() + fadeOut()
         ) {
@@ -274,7 +375,7 @@ fun MiuixDataPackageSourceWidget(state: EditViewState, dispatch: (EditViewAction
             )
 
             val spinnerEntries = remember(data) {
-                data.values.map { sourceName -> SpinnerEntry(title = sourceName) }
+                data.values.map { sourceName -> DropdownItem(title = sourceName) }
             }
 
             val selectedIndex = remember(currentSource, data) {
@@ -284,6 +385,7 @@ fun MiuixDataPackageSourceWidget(state: EditViewState, dispatch: (EditViewAction
             WindowSpinnerPreference(
                 title = stringResource(R.string.config_package_source),
                 items = spinnerEntries,
+                enabled = enabled,
                 selectedIndex = selectedIndex,
                 onSelectedIndexChange = { newIndex ->
                     data.keys.elementAtOrNull(newIndex)?.let { source ->
@@ -298,26 +400,46 @@ fun MiuixDataPackageSourceWidget(state: EditViewState, dispatch: (EditViewAction
 @Composable
 fun MiuixDataInstallRequesterWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
     val stateData = state.data
-    val enableCustomize = stateData.enableCustomizeInstallRequester
+    val currentMode = stateData.installRequesterMode
     val packageName = stateData.installRequester
     val uid = stateData.installRequesterUid
     val isError = stateData.errorInstallRequester
 
-    val description =
+    val data = mapOf(
+        InstallRequesterMode.Disable to stringResource(R.string.config_install_requester_mode_disable),
+        InstallRequesterMode.Initiator to stringResource(R.string.config_installer_mode_initiator),
+        InstallRequesterMode.Custom to stringResource(R.string.config_installer_mode_custom)
+    )
+
+    val spinnerEntries = remember(data) {
+        data.values.map { modeName -> DropdownItem(title = modeName) }
+    }
+
+    val selectedIndex = remember(currentMode, data) {
+        data.keys.toList().indexOf(currentMode).coerceAtLeast(0)
+    }
+
+    val description = if (currentMode == InstallRequesterMode.Custom) {
         if (isError) stringResource(R.string.config_declare_install_requester_error_desc)
         else stringResource(R.string.config_declare_install_requester_desc)
+    } else {
+        data[currentMode]
+    }
 
-    MiuixSwitchWidget(
+    WindowSpinnerPreference(
         title = stringResource(id = R.string.config_declare_install_requester),
-        description = description,
-        checked = enableCustomize,
-        onCheckedChange = {
-            dispatch(EditViewAction.ChangeDataEnableCustomizeInstallRequester(it))
+        summary = description,
+        items = spinnerEntries,
+        selectedIndex = selectedIndex,
+        onSelectedIndexChange = { newIndex ->
+            data.keys.elementAtOrNull(newIndex)?.let { mode ->
+                dispatch(EditViewAction.ChangeDataInstallRequesterMode(mode))
+            }
         }
     )
 
     AnimatedVisibility(
-        visible = enableCustomize,
+        visible = currentMode == InstallRequesterMode.Custom,
         enter = expandVertically() + fadeIn(),
         exit = shrinkVertically() + fadeOut()
     ) {
@@ -335,7 +457,9 @@ fun MiuixDataInstallRequesterWidget(state: EditViewState, dispatch: (EditViewAct
                 onValueChange = {
                     dispatch(EditViewAction.ChangeDataInstallRequester(it))
                 },
-                borderColor = if (isError) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary,
+                colors = TextFieldDefaults.textFieldColors(
+                    borderColor = if (isError) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary
+                ),
                 label = stringResource(id = R.string.config_install_requester),
                 useLabelAsPlaceholder = true,
                 singleLine = true
@@ -367,14 +491,30 @@ fun MiuixDataDeclareInstallerWidget(state: EditViewState, dispatch: (EditViewAct
     val stateAuthorizer = state.data.authorizer
     val globalAuthorizer = state.globalAuthorizer
     val currentMode = state.data.installerMode
+    val capabilityProvider = koinInject<DeviceCapabilityProvider>()
 
-    val isDhizuku = isDhizukuActive(stateAuthorizer, globalAuthorizer)
+    val isDhizuku = state.isDhizukuAuthorizerActive
 
-    val description = if (isDhizuku) {
-        stringResource(R.string.dhizuku_cannot_set_installer_desc)
-    } else {
-        stringResource(id = R.string.config_declare_installer_desc)
-    }
+    val description = state.dhizukuAwareDescription(
+        when (currentMode) {
+            InstallerMode.Self -> {
+                val descRes = if (
+                    isSystemPackageInstallerActive(
+                        stateAuthorizer = stateAuthorizer,
+                        globalAuthorizer = globalAuthorizer,
+                        isSystemApp = capabilityProvider.isSystemApp
+                    )
+                ) {
+                    R.string.config_declare_installer_system_default_desc
+                } else {
+                    R.string.config_declare_installer_desc
+                }
+                stringResource(descRes)
+            }
+            InstallerMode.Initiator -> stringResource(R.string.config_installer_mode_initiator)
+            InstallerMode.Custom -> stringResource(R.string.config_installer_mode_custom)
+        }
+    )
 
     Column {
         val data = mapOf(
@@ -384,7 +524,7 @@ fun MiuixDataDeclareInstallerWidget(state: EditViewState, dispatch: (EditViewAct
         )
 
         val spinnerEntries = remember(data) {
-            data.values.map { modeName -> SpinnerEntry(title = modeName) }
+            data.values.map { modeName -> DropdownItem(title = modeName) }
         }
 
         val selectedIndex = remember(currentMode, data) {
@@ -395,12 +535,11 @@ fun MiuixDataDeclareInstallerWidget(state: EditViewState, dispatch: (EditViewAct
             title = stringResource(id = R.string.config_declare_installer),
             summary = description,
             items = spinnerEntries,
+            enabled = !isDhizuku,
             selectedIndex = selectedIndex,
             onSelectedIndexChange = { newIndex ->
-                if (!isDhizuku) {
-                    data.keys.elementAtOrNull(newIndex)?.let { mode ->
-                        dispatch(EditViewAction.ChangeDataInstallerMode(mode))
-                    }
+                data.keys.elementAtOrNull(newIndex)?.let { mode ->
+                    dispatch(EditViewAction.ChangeDataInstallerMode(mode))
                 }
             }
         )
@@ -433,7 +572,9 @@ fun MiuixDataInstallerWidget(state: EditViewState, dispatch: (EditViewAction) ->
                 .focusable(),
             value = currentInstaller,
             onValueChange = { dispatch(EditViewAction.ChangeDataInstaller(it)) },
-            borderColor = if (isError) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary,
+            colors = TextFieldDefaults.textFieldColors(
+                borderColor = if (isError) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary
+            ),
             label = stringResource(id = R.string.config_installer),
             useLabelAsPlaceholder = true,
             singleLine = true
@@ -453,34 +594,31 @@ fun MiuixDataInstallerWidget(state: EditViewState, dispatch: (EditViewAction) ->
 
 @Composable
 fun MiuixDataUserWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
-    val stateAuthorizer = state.data.authorizer
-    val globalAuthorizer = state.globalAuthorizer
     val enableCustomizeUser = state.data.enableCustomizeUser
     val targetUserId = state.data.targetUserId
     val availableUsers = state.availableUsers
-
-    val description =
-        if (isDhizukuActive(stateAuthorizer, globalAuthorizer)) stringResource(R.string.dhizuku_cannot_set_user_desc)
-        else stringResource(id = R.string.config_customize_user_desc)
+    val isDhizuku = state.isDhizukuAuthorizerActive
 
     Column {
         MiuixSwitchWidget(
             title = stringResource(id = R.string.config_customize_user),
-            description = description,
+            description = stringResource(
+                id = state.dhizukuAwareDescriptionRes(R.string.config_customize_user_desc)
+            ),
             checked = enableCustomizeUser,
-            enabled = !isDhizukuActive(stateAuthorizer, globalAuthorizer),
+            enabled = !isDhizuku,
             onCheckedChange = {
                 dispatch(EditViewAction.ChangeDataCustomizeUser(it))
             }
         )
 
         AnimatedVisibility(
-            visible = enableCustomizeUser,
+            visible = enableCustomizeUser && !isDhizuku,
             enter = expandVertically() + fadeIn(),
             exit = shrinkVertically() + fadeOut()
         ) {
             val spinnerEntries = remember(availableUsers) {
-                availableUsers.values.map { userName -> SpinnerEntry(title = userName) }
+                availableUsers.values.map { userName -> DropdownItem(title = userName) }
             }
 
             val selectedIndex = remember(targetUserId, availableUsers) {
@@ -503,25 +641,23 @@ fun MiuixDataUserWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit
 
 @Composable
 fun MiuixDataManualDexoptWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
-    val stateAuthorizer = state.data.authorizer
-    val globalAuthorizer = state.globalAuthorizer
-
-    val description =
-        if (isDhizukuActive(stateAuthorizer, globalAuthorizer)) stringResource(R.string.dhizuku_cannot_set_dexopt_desc)
-        else stringResource(R.string.config_manual_dexopt_desc)
+    val isDhizuku = state.isDhizukuAuthorizerActive
+    val showDexoptOptions = state.data.enableManualDexopt && !isDhizuku
 
     MiuixSwitchWidget(
         title = stringResource(id = R.string.config_manual_dexopt),
-        description = description,
+        description = stringResource(
+            id = state.dhizukuAwareDescriptionRes(R.string.config_manual_dexopt_desc)
+        ),
         checked = state.data.enableManualDexopt,
-        enabled = !isDhizukuActive(stateAuthorizer, globalAuthorizer),
+        enabled = !isDhizuku,
         onCheckedChange = {
             dispatch(EditViewAction.ChangeDataEnableManualDexopt(it))
         }
     )
 
     AnimatedVisibility(
-        visible = state.data.enableManualDexopt,
+        visible = showDexoptOptions,
         enter = expandVertically() + fadeIn(),
         exit = shrinkVertically() + fadeOut()
     ) {
@@ -544,7 +680,7 @@ fun MiuixDataManualDexoptWidget(state: EditViewState, dispatch: (EditViewAction)
 
             val spinnerEntries = remember(data) {
                 data.values.map { modeName ->
-                    SpinnerEntry(title = modeName)
+                    DropdownItem(title = modeName)
                 }
             }
 
@@ -633,9 +769,13 @@ fun MiuixDataForAllUserWidget(state: EditViewState, dispatch: (EditViewAction) -
 
 @Composable
 fun MiuixDataAllowTestOnlyWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
+    val isDhizuku = state.isDhizukuAuthorizerActive
     MiuixSwitchWidget(
         title = stringResource(id = R.string.config_allow_test),
-        description = stringResource(id = R.string.config_allow_test_desc),
+        description = stringResource(
+            id = state.dhizukuAwareDescriptionRes(R.string.config_allow_test_desc)
+        ),
+        enabled = !isDhizuku,
         checked = state.data.allowTestOnly,
         onCheckedChange = {
             dispatch(EditViewAction.ChangeDataAllowTestOnly(it))
@@ -645,9 +785,13 @@ fun MiuixDataAllowTestOnlyWidget(state: EditViewState, dispatch: (EditViewAction
 
 @Composable
 fun MiuixDataAllowDowngradeWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
+    val isDhizuku = state.isDhizukuAuthorizerActive
     MiuixSwitchWidget(
         title = stringResource(id = R.string.config_allow_downgrade),
-        description = stringResource(id = R.string.config_allow_downgrade_desc),
+        description = stringResource(
+            id = state.dhizukuAwareDescriptionRes(R.string.config_allow_downgrade_desc)
+        ),
+        enabled = !isDhizuku,
         checked = state.data.allowDowngrade,
         onCheckedChange = {
             dispatch(EditViewAction.ChangeDataAllowDowngrade(it))
@@ -657,20 +801,50 @@ fun MiuixDataAllowDowngradeWidget(state: EditViewState, dispatch: (EditViewActio
 
 @Composable
 fun MiuixDataBypassLowTargetSdkWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
+    val isDhizuku = state.isDhizukuAuthorizerActive
     MiuixSwitchWidget(
         icon = AppIcons.InstallBypassLowTargetSdk,
         title = stringResource(id = R.string.config_bypass_low_target_sdk),
-        description = stringResource(id = R.string.config_bypass_low_target_sdk_desc),
+        description = stringResource(
+            id = state.dhizukuAwareDescriptionRes(R.string.config_bypass_low_target_sdk_desc)
+        ),
+        enabled = !isDhizuku,
         checked = state.data.bypassLowTargetSdk,
         onCheckedChange = { dispatch(EditViewAction.ChangeDataBypassLowTargetSdk(it)) }
     )
 }
 
 @Composable
+fun MiuixDataAllowSigMismatchWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
+    MiuixSwitchWidget(
+        icon = AppIcons.InstallAllowRestrictedPermissions,
+        title = stringResource(id = R.string.config_allow_sig_mismatch),
+        description = stringResource(id = R.string.config_allow_sig_mismatch_desc),
+        checked = !state.data.allowSigMismatch,
+        onCheckedChange = { dispatch(EditViewAction.ChangeDataAllowSigMismatch(!it)) }
+    )
+}
+
+@Composable
+fun MiuixDataAllowSigUnknownWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
+    MiuixSwitchWidget(
+        icon = AppIcons.InstallAllowRestrictedPermissions,
+        title = stringResource(id = R.string.config_allow_sig_unknown),
+        description = stringResource(id = R.string.config_allow_sig_unknown_desc),
+        checked = !state.data.allowSigUnknown,
+        onCheckedChange = { dispatch(EditViewAction.ChangeDataAllowSigUnknown(!it)) }
+    )
+}
+
+@Composable
 fun MiuixDataAllowAllRequestedPermissionsWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
+    val isDhizuku = state.isDhizukuAuthorizerActive
     MiuixSwitchWidget(
         title = stringResource(id = R.string.config_grant_all_permissions),
-        description = stringResource(id = R.string.config_grant_all_permissions_desc),
+        description = stringResource(
+            id = state.dhizukuAwareDescriptionRes(R.string.config_grant_all_permissions_desc)
+        ),
+        enabled = !isDhizuku,
         checked = state.data.allowAllRequestedPermissions,
         onCheckedChange = { dispatch(EditViewAction.ChangeDataAllowAllRequestedPermissions(it)) }
     )
@@ -678,9 +852,13 @@ fun MiuixDataAllowAllRequestedPermissionsWidget(state: EditViewState, dispatch: 
 
 @Composable
 fun MiuixRequestUpdateOwnershipWidget(state: EditViewState, dispatch: (EditViewAction) -> Unit) {
+    val isDhizuku = state.isDhizukuAuthorizerActive
     MiuixSwitchWidget(
         title = stringResource(id = R.string.config_request_update_ownership),
-        description = stringResource(id = R.string.config_request_update_ownership_desc),
+        description = stringResource(
+            id = state.dhizukuAwareDescriptionRes(R.string.config_request_update_ownership_desc)
+        ),
+        enabled = !isDhizuku,
         checked = state.data.requestUpdateOwnership,
         onCheckedChange = { dispatch(EditViewAction.ChangeDataRequestUpdateOwnership(it)) }
     )

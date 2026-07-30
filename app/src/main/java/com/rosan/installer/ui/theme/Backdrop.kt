@@ -11,14 +11,14 @@ import androidx.compose.ui.graphics.Shape
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.isRenderEffectSupported
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.shader.isRenderEffectSupported
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * Remember a LayerBackdrop with a solid background to prevent alpha-blending artifacts.
- * * @param enableBlur Whether the blur effect is globally enabled.
+ * @param enableBlur Whether the blur effect is globally enabled.
  * @return A LayerBackdrop instance if supported and enabled, null otherwise.
  */
 @Composable
@@ -83,7 +83,6 @@ fun Modifier.installerMiuixBlurEffect(
 @Composable
 fun rememberMaterial3BlurBackdrop(enableBlur: Boolean): LayerBackdrop? {
     if (!enableBlur || !isRenderEffectSupported()) return null
-    // Match the exact color used in your previous M3 Haze style
     val surfaceColor = MaterialTheme.colorScheme.surfaceContainer
     return rememberLayerBackdrop {
         drawRect(surfaceColor)

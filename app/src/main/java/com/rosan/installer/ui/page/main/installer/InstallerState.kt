@@ -4,11 +4,11 @@ package com.rosan.installer.ui.page.main.installer
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import com.rosan.installer.domain.engine.model.PackageAnalysisResult
+import com.rosan.installer.domain.engine.model.packageinfo.PackageAnalysisResult
 import com.rosan.installer.domain.session.model.UninstallInfo
-import com.rosan.installer.domain.settings.model.ConfigModel
-import com.rosan.installer.domain.settings.model.NamedPackage
-import com.rosan.installer.domain.settings.model.RootMode
+import com.rosan.installer.domain.settings.model.app.NamedPackage
+import com.rosan.installer.domain.settings.model.config.ConfigModel
+import com.rosan.installer.domain.settings.model.preferences.RootMode
 
 /**
  * Represents the entire UI state for the Installer screen.
@@ -30,6 +30,7 @@ data class InstallerState(
     // Visual data
     val currentPackageName: String? = null,
     val initiatorAppLabel: String? = null,
+    val unknownSourcePermissionAppLabel: String? = null,
     val displayIcons: Map<String, ImageBitmap?> = emptyMap(),
     val seedColor: Color? = null,
 
@@ -57,11 +58,14 @@ data class InstallerState(
             is InstallerStage.Resolving,
             is InstallerStage.InstallExtendedMenu,
             is InstallerStage.InstallChoice,
-            is InstallerStage.Uninstalling -> false
+            is InstallerStage.Uninstalling,
+            is InstallerStage.InstallConfirm,
+            is InstallerStage.Unarchiving -> false
 
             is InstallerStage.InstallingModule -> stage.isFinished
             is InstallerStage.InstallPrepare -> !(showMiuixSheetRightActionSettings || showMiuixPermissionList)
             is InstallerStage.Preparing,
+            is InstallerStage.InstallWaitingUnknownSource,
             is InstallerStage.Installing -> !viewSettings.disableNotificationOnDismiss
 
             else -> true

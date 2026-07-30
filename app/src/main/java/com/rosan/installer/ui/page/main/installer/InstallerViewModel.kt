@@ -7,13 +7,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rosan.installer.BuildConfig
 import com.rosan.installer.R
-import com.rosan.installer.data.engine.executor.PackageManagerUtil
-import com.rosan.installer.domain.engine.model.AppEntity
-import com.rosan.installer.domain.engine.model.DataType
-import com.rosan.installer.domain.engine.model.PackageAnalysisResult
-import com.rosan.installer.domain.engine.model.SessionMode
-import com.rosan.installer.domain.engine.model.sourcePath
+import com.rosan.installer.core.bitmask.addFlag
+import com.rosan.installer.core.bitmask.hasFlag
+import com.rosan.installer.core.bitmask.removeFlag
+import com.rosan.installer.domain.engine.model.install.SessionMode
+import com.rosan.installer.domain.engine.model.install.UninstallFlags
+import com.rosan.installer.domain.engine.model.install.sourcePath
+import com.rosan.installer.domain.engine.model.packageinfo.AppEntity
+import com.rosan.installer.domain.engine.model.packageinfo.PackageAnalysisResult
+import com.rosan.installer.domain.engine.model.packageinfo.analyzePackageSignatureMatch
+import com.rosan.installer.domain.engine.model.packageinfo.analyzePackageSignatureSelection
+import com.rosan.installer.domain.engine.model.source.DataType
+import com.rosan.installer.domain.device.provider.DeviceCapabilityProvider
+import com.rosan.installer.domain.engine.provider.InstalledPackageSignatureProvider
 import com.rosan.installer.domain.engine.usecase.GetAppIconColorUseCase
 import com.rosan.installer.domain.engine.usecase.GetAppIconUseCase
 import com.rosan.installer.domain.engine.usecase.GetAppLabelUseCase
@@ -21,15 +29,12 @@ import com.rosan.installer.domain.privileged.usecase.GetAvailableUsersUseCase
 import com.rosan.installer.domain.session.model.ProgressEntity
 import com.rosan.installer.domain.session.model.SelectInstallEntity
 import com.rosan.installer.domain.session.repository.InstallerSessionRepository
-import com.rosan.installer.domain.settings.model.Authorizer
-import com.rosan.installer.domain.settings.model.ConfigModel
-import com.rosan.installer.domain.settings.model.InstallMode
-import com.rosan.installer.domain.settings.model.InstallerMode
+import com.rosan.installer.domain.settings.model.config.Authorizer
+import com.rosan.installer.domain.settings.model.config.ConfigModel
+import com.rosan.installer.domain.settings.model.config.InstallMode
+import com.rosan.installer.domain.settings.model.config.InstallerMode
 import com.rosan.installer.domain.settings.repository.AppSettingsRepository
 import com.rosan.installer.domain.settings.repository.BooleanSetting
-import com.rosan.installer.util.addFlag
-import com.rosan.installer.util.hasFlag
-import com.rosan.installer.util.removeFlag
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
@@ -46,6 +51,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import kotlin.time.Duration.Companion.milliseconds
 
 class InstallerViewModel(
     private var session: InstallerSessionRepository,
@@ -53,7 +59,9 @@ class InstallerViewModel(
     private val getAvailableUsers: GetAvailableUsersUseCase,
     private val getAppIcon: GetAppIconUseCase,
     private val getAppIconColor: GetAppIconColorUseCase,
-    private val getAppLabel: GetAppLabelUseCase
+    private val getAppLabel: GetAppLabelUseCase,
+    private val deviceCapabilityProvider: DeviceCapabilityProvider,
+    private val installedPackageSignatureProvider: InstalledPackageSignatureProvider
 ) : ViewModel() {
 
     // Event channel for one-off side effects (e.g. Toasts)
@@ -85,14 +93,22 @@ class InstallerViewModel(
         local.copy(
             viewSettings = local.viewSettings.copy(
                 useBlur = prefs.useBlur,
-                autoCloseCountDown = prefs.dhizukuAutoCloseCountDown,
+                closeSessionCountDown = prefs.closeSessionCountDown,
+                hideIdenticalComparisons = prefs.hideIdenticalInstallComparisons,
                 showExtendedMenu = prefs.showDialogInstallExtendedMenu,
+                expandTemporarySettingsByDefault = prefs.expandDialogTemporarySettingsByDefault,
                 showSmartSuggestion = prefs.showSmartSuggestion,
                 disableNotificationOnDismiss = prefs.disableNotificationForDialogInstall,
                 versionCompareInSingleLine = prefs.versionCompareInSingleLine,
                 sdkCompareInMultiLine = prefs.sdkCompareInMultiLine,
                 showOPPOSpecial = local.tempShowOPPOSpecial ?: prefs.showOPPOSpecial,
+                checkAppSignature = prefs.checkAppSignature,
+                showSignatureInfoOnMatch = prefs.showSignatureInfoOnMatch,
+                showSignatureDetails = prefs.showSignatureDetails,
+                detectXposedModule = prefs.detectXposedModule,
+                quickOpenLSPosed = prefs.quickOpenLSPosed,
                 autoSilentInstall = prefs.autoSilentInstall,
+                longClickBackgroundInstall = prefs.longClickBackgroundInstall,
                 labTapIconToShare = prefs.labTapIconToShare,
                 labShowFilePath = local.tempLabShowFilePath ?: prefs.labShowFilePath,
                 labShowInstallInitiator = local.tempLabShowInstallInitiator ?: prefs.labShowInstallInitiator
@@ -119,6 +135,7 @@ class InstallerViewModel(
     private var autoInstallJob: Job? = null
     private val settingsLoadingJob: Job
     private var collectRepoJob: Job? = null
+    private var unknownSourcePermissionLabelPackageName: String? = null
 
     init {
         settingsLoadingJob = loadInitialSettings()
@@ -132,7 +149,6 @@ class InstallerViewModel(
         _localState.update { state ->
             state.copy(
                 viewSettings = state.viewSettings.copy(
-                    uiExpressive = appSettingsRepo.getBoolean(BooleanSetting.UiExpressiveSwitch, true).first(),
                     preferSystemIconForUpdates = appSettingsRepo.getBoolean(BooleanSetting.PreferSystemIconForInstall, false).first(),
                     enableModuleInstall = appSettingsRepo.getBoolean(BooleanSetting.LabEnableModuleFlash, false).first(),
                     useDynColorFollowPkgIcon = appSettingsRepo.getBoolean(BooleanSetting.UiDynColorFollowPkgIcon, false).first()
@@ -149,11 +165,13 @@ class InstallerViewModel(
         val newConfig = updateBlock(_localState.value.config)
         session.config = newConfig
         _localState.update { it.copy(config = newConfig) }
+        fetchUnknownSourcePermissionAppLabel(newConfig)
     }
 
     fun dispatch(action: InstallerViewAction) {
         when (action) {
             is InstallerViewAction.CollectSession -> collectRepo(action.session)
+            is InstallerViewAction.PrepareClose -> session.prepareClose()
             is InstallerViewAction.Close -> close()
             is InstallerViewAction.Cancel -> cancel()
             is InstallerViewAction.Analyse -> analyse()
@@ -167,10 +185,13 @@ class InstallerViewModel(
             is InstallerViewAction.InstallExtendedSubMenu -> installExtendedSubMenu()
             is InstallerViewAction.InstallMultiple -> installMultiple()
             is InstallerViewAction.Install -> install()
+            is InstallerViewAction.RequestUnknownSourcePermission -> requestUnknownSourcePermission()
             is InstallerViewAction.Background -> background()
             is InstallerViewAction.Reboot -> session.reboot(action.reason)
             is InstallerViewAction.UninstallAndRetryInstall -> uninstallAndRetryInstall(action.keepData, action.conflictingPackage)
             is InstallerViewAction.Uninstall -> session.uninstallInfo.value?.packageName?.let { session.uninstall(it) }
+            is InstallerViewAction.StartUnarchive -> session.startUnarchive()
+            is InstallerViewAction.OpenUnarchiveErrorAction -> session.openUnarchiveErrorAction()
 
             is InstallerViewAction.ShowMiuixSheetRightActionSettings -> _localState.update { it.copy(showMiuixSheetRightActionSettings = true) }
             is InstallerViewAction.HideMiuixSheetRightActionSettings -> _localState.update { it.copy(showMiuixSheetRightActionSettings = false) }
@@ -217,6 +238,8 @@ class InstallerViewModel(
 
         is ProgressEntity.InstallCompleted -> InstallerStage.InstallCompleted(progress.results)
 
+        ProgressEntity.InstallWaitingUnknownSource -> InstallerStage.InstallWaitingUnknownSource
+
         ProgressEntity.InstallFailed -> {
             if (isInstallingModule) {
                 val currentOutput = session.moduleLog.toMutableList()
@@ -241,10 +264,12 @@ class InstallerViewModel(
                 InstallerStage.InstallConfirm(
                     appLabel = details.appLabel,
                     appIcon = details.appIcon,
+                    packageName = details.packageName,
                     sessionId = details.sessionId,
                     isSelfSession = details.isSelfSession,
                     isOwnershipConflict = details.isOwnershipConflict,
-                    sourceAppLabel = details.sourceAppLabel
+                    sourceAppLabel = details.sourceAppLabel,
+                    requestType = details.requestType
                 )
             } else {
                 InstallerStage.ResolveFailed
@@ -255,26 +280,61 @@ class InstallerViewModel(
         ProgressEntity.UninstallFailed -> if (isRetrying) InstallerStage.InstallFailed else InstallerStage.UninstallFailed
         ProgressEntity.UninstallSuccess -> if (isRetrying) InstallerStage.InstallRetryDowngradeUsingUninstall else InstallerStage.UninstallSuccess
         ProgressEntity.UninstallReady -> InstallerStage.UninstallReady
+        ProgressEntity.UnarchiveReady -> {
+            val info = session.unarchiveInfo.value
+            if (info != null) {
+                InstallerStage.UnarchiveReady(
+                    packageName = info.packageName,
+                    appLabel = info.appLabel,
+                    installerLabel = info.installerLabel
+                )
+            } else {
+                InstallerStage.UnarchiveFailed
+            }
+        }
+
+        ProgressEntity.Unarchiving -> InstallerStage.Unarchiving
+        ProgressEntity.UnarchiveErrorReady -> {
+            val info = session.unarchiveErrorInfo.value
+            if (info != null) {
+                InstallerStage.UnarchiveError(
+                    status = info.status,
+                    requiredBytes = info.requiredBytes,
+                    installerLabel = info.installerLabel
+                )
+            } else {
+                InstallerStage.UnarchiveFailed
+            }
+        }
+
+        ProgressEntity.UnarchiveFailed -> InstallerStage.UnarchiveFailed
         ProgressEntity.InstallResolving, ProgressEntity.InstallAnalysing, is ProgressEntity.InstallPreparing -> _localState.value.stage
         else -> InstallerStage.Ready
     }
 
     private fun collectRepo(session: InstallerSessionRepository) {
         this.session = session
-        if (session.config.enableCustomizeUser) loadAvailableUsers(session.config.authorizer)
+        if (session.config.enableCustomizeUser) {
+            loadAvailableUsers(session.config.authorizer, session.config.customizeAuthorizer)
+        }
 
         _localState.update {
+            val validPackages = session.analysisResults.map { res -> res.packageName }.toSet()
+            val analysedIcons = session.analysisResults.toDisplayIconMap()
             it.copy(
                 config = session.config,   // Synchronize the entire ConfigModel to UI state
                 currentPackageName = null,
                 initiatorAppLabel = null,  // Reset label on new session
+                unknownSourcePermissionAppLabel = null,
                 analysisResults = session.analysisResults,
-                displayIcons = it.displayIcons.filterKeys { key -> key in session.analysisResults.map { res -> res.packageName } },
+                displayIcons = it.displayIcons.filterKeys { key -> key in validPackages } + analysedIcons,
                 error = session.error
             )
         }
 
+        unknownSourcePermissionLabelPackageName = null
         fetchInitiatorAppLabel(session.config.initiatorPackageName)
+        fetchUnknownSourcePermissionAppLabel(session.config)
 
         collectRepoJob?.cancel()
         autoInstallJob?.cancel()
@@ -295,7 +355,7 @@ class InstallerViewModel(
                         }
                     } else if (loadingStateJob == null || !loadingStateJob!!.isActive) {
                         loadingStateJob = viewModelScope.launch {
-                            delay(200L)
+                            delay(200L.milliseconds)
                             _localState.update {
                                 it.copy(stage = if (progress is ProgressEntity.InstallPreparing) InstallerStage.Preparing(progress.progress) else InstallerStage.Analysing)
                             }
@@ -313,9 +373,13 @@ class InstallerViewModel(
                         originalAnalysisResults = session.analysisResults
                     }
                     // Update state first
-                    _localState.update { it.copy(analysisResults = session.analysisResults) }
-                    // Trigger side effects (like loading icons) after the state is fully updated
-                    session.analysisResults.forEach { result -> loadDisplayIcon(result.packageName) }
+                    val analysedIcons = session.analysisResults.toDisplayIconMap()
+                    _localState.update {
+                        it.copy(
+                            analysisResults = session.analysisResults,
+                            displayIcons = it.displayIcons + analysedIcons
+                        )
+                    }
                 }
 
                 // Pass the current results to the pure mapper
@@ -351,17 +415,24 @@ class InstallerViewModel(
                         }
                     }
 
-                    is InstallerStage.InstallPrepare, is InstallerStage.InstallFailed, is InstallerStage.InstallSuccess -> {
+                    is InstallerStage.InstallPrepare,
+                    is InstallerStage.InstallWaitingUnknownSource,
+                    is InstallerStage.InstallFailed,
+                    is InstallerStage.InstallSuccess -> {
                         _localState.value.currentPackageName ?: _localState.value.analysisResults.firstOrNull()?.packageName
                     }
 
                     is InstallerStage.InstallChoice, is InstallerStage.Ready -> null
+
+                    is InstallerStage.InstallConfirm -> newStage.packageName
 
                     // All uninstall stages read directly from the latest uninstallInfo
                     is InstallerStage.UninstallReady,
                     is InstallerStage.Uninstalling,
                     is InstallerStage.UninstallSuccess,
                     is InstallerStage.UninstallFailed -> uninstallInfo?.packageName
+
+                    is InstallerStage.UnarchiveReady -> newStage.packageName
 
                     else -> _localState.value.currentPackageName
                 }
@@ -379,6 +450,7 @@ class InstallerViewModel(
                     } ?: currentState.uiUninstallInfo
 
                     currentState.copy(
+                        config = session.config,
                         stage = newStage,
                         currentPackageName = newPackageName,
                         uiUninstallInfo = mergedUninstallInfo,
@@ -389,7 +461,11 @@ class InstallerViewModel(
                 if (newPackageName != oldPackageName) {
 
                     if (newPackageName != null) {
-                        loadDisplayIcon(newPackageName)
+                        if (newStage is InstallerStage.InstallConfirm && newStage.appIcon != null) {
+                            _localState.update { it.copy(displayIcons = it.displayIcons + (newPackageName to newStage.appIcon.asImageBitmap())) }
+                        } else {
+                            loadDisplayIcon(newPackageName)
+                        }
                     }
 
                     if (_localState.value.viewSettings.useDynColorFollowPkgIcon) {
@@ -417,12 +493,20 @@ class InstallerViewModel(
                                 // [Log] Check if ViewModel successfully resolved the entity
                                 Timber.d("ExtractColorTrace: ViewModel getting color for pkg=$newPackageName. Resolved entityToInstall: $entityToInstall")
 
-                                val colorInt = getAppIconColor(
-                                    sessionId = session.id,
-                                    packageName = newPackageName,
-                                    entityToInstall = entityToInstall,
-                                    preferSystemIcon = _localState.value.viewSettings.preferSystemIconForUpdates
-                                )
+                                val analysedResult = _localState.value.analysisResults
+                                    .find { it.packageName == newPackageName }
+                                val colorInt = if (analysedResult != null) {
+                                    analysedResult.seedColor
+                                } else if (newStage is InstallerStage.InstallConfirm && newStage.appIcon != null) {
+                                    getAppIconColor(newStage.appIcon)
+                                } else {
+                                    getAppIconColor(
+                                        sessionId = session.id,
+                                        packageName = newPackageName,
+                                        entityToInstall = entityToInstall,
+                                        preferSystemIcon = _localState.value.viewSettings.preferSystemIconForUpdates
+                                    )
+                                }
                                 _localState.update { it.copy(seedColor = colorInt?.let { c -> Color(c) }) }
                             }
                         }
@@ -431,15 +515,10 @@ class InstallerViewModel(
                     }
                 }
 
-                // Icon loading logic: load only when the package name changes and is not null/empty
-                if (newPackageName != null && newPackageName != oldPackageName) {
-                    loadDisplayIcon(newPackageName)
-                }
-
                 autoInstallJob?.cancel()
                 if (newStage is InstallerStage.InstallPrepare && session.config.installMode == InstallMode.AutoDialog) {
                     autoInstallJob = viewModelScope.launch {
-                        delay(500)
+                        delay(500.milliseconds)
                         if (_localState.value.stage is InstallerStage.InstallPrepare) install()
                     }
                 }
@@ -470,9 +549,9 @@ class InstallerViewModel(
         updateConfig { it.copy(targetUserId = userId) }
     }
 
-    private fun loadAvailableUsers(authorizer: Authorizer) {
+    private fun loadAvailableUsers(authorizer: Authorizer, customizeAuthorizer: String = "") {
         viewModelScope.launch {
-            getAvailableUsers(authorizer)
+            getAvailableUsers(authorizer, customizeAuthorizer)
                 .onSuccess { users ->
                     _localState.update { it.copy(availableUsers = users) }
                     // If the currently selected user is not in the available list, reset it to 0 (Owner).
@@ -491,16 +570,27 @@ class InstallerViewModel(
 
     private fun loadDisplayIcon(packageName: String) {
         if (packageName.isBlank()) return
-        if (_localState.value.displayIcons[packageName] != null || iconJobs[packageName]?.isActive == true) return
+        if (_localState.value.displayIcons[packageName] != null) return
+
+        val analysedResult = _localState.value.analysisResults.find { it.packageName == packageName }
+        if (analysedResult != null) {
+            val analysedIcon = analysedResult.displayIcon?.asImageBitmap()
+            if (analysedIcon != null) {
+                _localState.update { it.copy(displayIcons = it.displayIcons + (packageName to analysedIcon)) }
+            }
+            return
+        }
+
+        if (iconJobs[packageName]?.isActive == true) return
+
+        val rawEntities = _localState.value.analysisResults.find { it.packageName == packageName }?.appEntities?.map { it.app }
+        val entityToInstall = rawEntities?.filterIsInstance<AppEntity.BaseEntity>()?.firstOrNull()
+            ?: rawEntities?.filterIsInstance<AppEntity.ModuleEntity>()?.firstOrNull()
 
         _localState.update { it.copy(displayIcons = it.displayIcons + (packageName to null)) }
 
         iconJobs[packageName]?.cancel()
         iconJobs[packageName] = viewModelScope.launch {
-            val rawEntities = _localState.value.analysisResults.find { it.packageName == packageName }?.appEntities?.map { it.app }
-            val entityToInstall = rawEntities?.filterIsInstance<AppEntity.BaseEntity>()?.firstOrNull()
-                ?: rawEntities?.filterIsInstance<AppEntity.ModuleEntity>()?.firstOrNull()
-
             val loadedIconBitmap = getAppIcon(
                 sessionId = session.id,
                 packageName = packageName,
@@ -510,12 +600,15 @@ class InstallerViewModel(
 
             val finalImageBitmap = loadedIconBitmap?.asImageBitmap()
 
-            _localState.update {
-                if (it.displayIcons[packageName] == null) it.copy(displayIcons = it.displayIcons + (packageName to finalImageBitmap))
-                else it
+            if (finalImageBitmap != null) {
+                _localState.update { it.copy(displayIcons = it.displayIcons + (packageName to finalImageBitmap)) }
             }
         }
     }
+
+    private fun List<PackageAnalysisResult>.toDisplayIconMap() = mapNotNull { result ->
+        result.displayIcon?.asImageBitmap()?.let { result.packageName to it }
+    }.toMap()
 
     private fun toast(message: String) = _uiEvents.tryEmit(InstallerViewEvent.ShowToast(message))
     private fun toast(@StringRes resId: Int) = _uiEvents.tryEmit(InstallerViewEvent.ShowToastRes(resId))
@@ -547,7 +640,18 @@ class InstallerViewModel(
         if (containerType == DataType.MIXED_MODULE_APK) {
             // Generate a new list with all selections cleared
             currentResults = currentResults.map { result ->
-                result.copy(appEntities = result.appEntities.map { it.copy(selected = false) })
+                val clearedEntities = result.appEntities.map { it.copy(selected = false) }
+
+                result.copy(
+                    appEntities = clearedEntities,
+                    signatureMatchStatus = clearedEntities.analyzePackageSignatureMatch(
+                        installedInfo = result.installedAppInfo,
+                        hasSigningCertificate = installedPackageSignatureProvider::hasSigningCertificate
+                    ),
+                    signatureAnalysis = clearedEntities.analyzePackageSignatureSelection(
+                        result.installedAppInfo
+                    )
+                )
             }
             // Sync the updated list back to the underlying session
             session.analysisResults = currentResults.toMutableList()
@@ -607,6 +711,10 @@ class InstallerViewModel(
         session.install(true)
     }
 
+    private fun requestUnknownSourcePermission() {
+        _uiEvents.tryEmit(InstallerViewEvent.RequestUnknownSourcePermission)
+    }
+
     private fun background() = session.background(true)
 
     fun toggleSelection(packageName: String, entityToToggle: SelectInstallEntity, isMultiSelect: Boolean) {
@@ -625,7 +733,19 @@ class InstallerViewModel(
                 updatedEntities.replaceAll { it.copy(selected = false) }
             }
 
-            val newPackageAnalysisResult = packageToUpdate.copy(appEntities = updatedEntities)
+            val newSignatureAnalysis = updatedEntities.analyzePackageSignatureSelection(
+                packageToUpdate.installedAppInfo
+            )
+            val newSignatureMatchStatus = updatedEntities.analyzePackageSignatureMatch(
+                installedInfo = packageToUpdate.installedAppInfo,
+                hasSigningCertificate = installedPackageSignatureProvider::hasSigningCertificate
+            )
+
+            val newPackageAnalysisResult = packageToUpdate.copy(
+                appEntities = updatedEntities,
+                signatureMatchStatus = newSignatureMatchStatus,
+                signatureAnalysis = newSignatureAnalysis
+            )
             currentResults[packageIndex] = newPackageAnalysisResult
 
             // Sync to session
@@ -641,11 +761,11 @@ class InstallerViewModel(
             val currentFlags = currentConfig.uninstallFlags
             var newFlags = if (enable) currentFlags.addFlag(flag) else currentFlags.removeFlag(flag)
 
-            if (enable && flag == PackageManagerUtil.DELETE_ALL_USERS && currentFlags.hasFlag(PackageManagerUtil.DELETE_SYSTEM_APP)) {
-                newFlags = newFlags.removeFlag(PackageManagerUtil.DELETE_SYSTEM_APP)
+            if (enable && flag == UninstallFlags.DELETE_ALL_USERS && currentFlags.hasFlag(UninstallFlags.DELETE_SYSTEM_APP)) {
+                newFlags = newFlags.removeFlag(UninstallFlags.DELETE_SYSTEM_APP)
                 toast(R.string.uninstall_system_app_disabled)
-            } else if (enable && flag == PackageManagerUtil.DELETE_SYSTEM_APP && currentFlags.hasFlag(PackageManagerUtil.DELETE_ALL_USERS)) {
-                newFlags = newFlags.removeFlag(PackageManagerUtil.DELETE_ALL_USERS)
+            } else if (enable && flag == UninstallFlags.DELETE_SYSTEM_APP && currentFlags.hasFlag(UninstallFlags.DELETE_ALL_USERS)) {
+                newFlags = newFlags.removeFlag(UninstallFlags.DELETE_ALL_USERS)
                 toast(R.string.uninstall_all_users_disabled)
             }
 
@@ -660,7 +780,7 @@ class InstallerViewModel(
             return
         }
 
-        updateConfig { it.copy(uninstallFlags = if (keepData) PackageManagerUtil.DELETE_KEEP_DATA else 0) }
+        updateConfig { it.copy(uninstallFlags = if (keepData) UninstallFlags.DELETE_KEEP_DATA else 0) }
 
         isRetryingInstall = true
         Timber.d("Uninstalling conflicting/old package: $targetPackageName for retry")
@@ -706,6 +826,26 @@ class InstallerViewModel(
             // Await the result from the clean domain use case
             val label = getAppLabel(packageName)
             _localState.update { it.copy(initiatorAppLabel = label) }
+        }
+    }
+
+    private fun fetchUnknownSourcePermissionAppLabel(config: ConfigModel) {
+        val packageName = if (config.authorizer == Authorizer.None && !deviceCapabilityProvider.isSystemApp) {
+            BuildConfig.APPLICATION_ID
+        } else {
+            config.initiatorPackageName
+        }
+        if (packageName.isNullOrBlank()) {
+            unknownSourcePermissionLabelPackageName = null
+            _localState.update { it.copy(unknownSourcePermissionAppLabel = null) }
+            return
+        }
+        if (unknownSourcePermissionLabelPackageName == packageName) return
+
+        unknownSourcePermissionLabelPackageName = packageName
+        viewModelScope.launch {
+            val label = getAppLabel(packageName)
+            _localState.update { it.copy(unknownSourcePermissionAppLabel = label) }
         }
     }
 }

@@ -2,9 +2,9 @@
 // Copyright (C) 2025-2026 InstallerX Revived contributors
 package com.rosan.installer.domain.settings.repository
 
-import com.rosan.installer.domain.settings.model.AppPreferences
-import com.rosan.installer.domain.settings.model.NamedPackage
-import com.rosan.installer.domain.settings.model.SharedUid
+import com.rosan.installer.domain.settings.model.preferences.AppPreferences
+import com.rosan.installer.domain.settings.model.app.NamedPackage
+import com.rosan.installer.domain.settings.model.app.SharedUid
 import kotlinx.coroutines.flow.Flow
 
 enum class StringSetting {
@@ -20,20 +20,20 @@ enum class StringSetting {
     PredictiveBackExitDirection,
     GithubUpdateChannel,
     CustomGithubProxyUrl,
-    InstallerBiometricAuthMode
+    InstallerBiometricAuthMode,
+    SmartAuthorizerCandidates
 }
 
 enum class IntSetting {
     ThemeSeedColor,
     ShowMiIslandBlockingInterval,
     NotificationSuccessAutoClearSeconds,
-    DialogAutoCloseCountdown,
+    CloseSessionCountdown,
     UninstallFlags
 }
 
 enum class BooleanSetting {
     UiUseBlur,
-    UiExpressiveSwitch,
     ThemeUseDynamicColor,
     UiUseMiuix,
     UiUseMiuixMonet,
@@ -55,13 +55,20 @@ enum class BooleanSetting {
     ApplySelectedFirst,
     ApplyShowSystemApp,
     ApplyShowPackageName,
+    DialogHideIdenticalComparisons,
     DialogVersionCompareSingleLine,
     DialogSdkCompareMultiLine,
     DialogShowExtendedMenu,
+    DialogExpandTemporarySettingsByDefault,
     DialogShowIntelligentSuggestion,
     DialogDisableNotificationOnDismiss,
     DialogShowOppoSpecial,
+    CheckAppSignature,
+    ShowSignatureInfoOnMatch,
+    ShowSignatureDetails,
     DialogAutoSilentInstall,
+    DialogLongClickBackgroundInstall,
+    TryMultipleAuthorizersOnInstall,
     LabEnableModuleFlash,
     LabModuleFlashShowArt,
     LabHttpSaveFile,
@@ -70,7 +77,11 @@ enum class BooleanSetting {
     LabShowFilePath,
     LabShowInstallInitiator,
     LabInstallWithoutUserAction,
-    EnableFileLogging
+    LabRespectPlatformInstallPolicy,
+    DetectXposedModule,
+    QuickOpenLSPosed,
+    EnableFileLogging,
+    UserSetLSPosedActive
 }
 
 enum class NamedPackageListSetting {

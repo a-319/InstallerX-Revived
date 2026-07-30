@@ -24,6 +24,7 @@ import com.rosan.installer.R
 import com.rosan.installer.ui.page.main.installer.InstallerStage
 import com.rosan.installer.ui.page.main.installer.InstallerViewAction
 import com.rosan.installer.ui.page.main.installer.InstallerViewModel
+import com.rosan.installer.ui.page.main.installer.components.workingIcon
 import com.rosan.installer.ui.page.main.installer.dialog.DialogButton
 import com.rosan.installer.ui.page.main.installer.dialog.DialogInnerParams
 import com.rosan.installer.ui.page.main.installer.dialog.DialogParams
@@ -37,7 +38,6 @@ fun preparingDialog(
 ): DialogParams {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val stage = uiState.stage
-    val viewSettings = uiState.viewSettings
 
     // Extract progress via Smart Cast from the stage
     val progress = if (stage is InstallerStage.Preparing) {
@@ -48,7 +48,8 @@ fun preparingDialog(
 
     return DialogParams(
         icon = DialogInnerParams(
-            DialogParamsType.IconWorking.id, {}
+            DialogParamsType.IconWorking.id,
+            workingIcon
         ),
         title = DialogInnerParams(
             DialogParamsType.InstallerPreparing.id,
@@ -58,7 +59,9 @@ fun preparingDialog(
         text = DialogInnerParams(
             DialogParamsType.InstallerPreparing.id,
         ) {
-            Column {
+            Column(
+                modifier = Modifier.padding(bottom = 4.dp)
+            ) {
                 Text(
                     text = stringResource(R.string.installer_preparing_desc),
                     style = MaterialTheme.typography.bodyMedium,
@@ -84,30 +87,26 @@ fun preparingDialog(
                         label = "PreparingProgressAnimation"
                     )
 
-                    // Use viewSettings from uiState
-                    if (viewSettings.uiExpressive)
-                        LinearWavyProgressIndicator(
-                            progress = { animatedProgress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp),
-                        )
-                    else
-                        LinearWavyProgressIndicator(
-                            progress = { animatedProgress },
-                            modifier = Modifier.fillMaxWidth(),
-                            amplitude = { 0f }
-                        )
+                    LinearWavyProgressIndicator(
+                        progress = { animatedProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp),
+                    )
                 }
             }
         },
         buttons = dialogButtons(
             DialogParamsType.ButtonsCancel.id
         ) {
-            listOf(DialogButton(stringResource(R.string.cancel)) {
-                viewModel.dispatch(InstallerViewAction.Cancel)
-            })
-            //emptyList()
+            listOf(
+                DialogButton(stringResource(R.string.installer_move_to_background)) {
+                    viewModel.dispatch(InstallerViewAction.Background)
+                },
+                DialogButton(stringResource(R.string.cancel)) {
+                    viewModel.dispatch(InstallerViewAction.Cancel)
+                }
+            )
         }
     )
 }

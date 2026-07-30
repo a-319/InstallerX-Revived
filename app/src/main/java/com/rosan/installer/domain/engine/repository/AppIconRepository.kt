@@ -4,7 +4,7 @@ package com.rosan.installer.domain.engine.repository
 
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
-import com.rosan.installer.domain.engine.model.AppEntity
+import com.rosan.installer.domain.engine.model.packageinfo.AppEntity
 import com.rosan.installer.domain.engine.repository.AppIconRepository.Companion.SETTINGS_APP_LIST
 
 /**
@@ -45,7 +45,8 @@ interface AppIconRepository {
      * - **true** (upgrades): system launcher icon → APK system loader → raw APK drawable
      * - **false** (new installs): raw APK drawable → system launcher icon
      *
-     * Results are cached by (sessionId, packageName, userId, iconSizePx).
+     * Results are cached by session, package, user, size, resolution preference,
+     * and the current system icon source state when a system icon can be used.
      * A platform default icon is returned if all resolution strategies fail.
      *
      * @param sessionId   Logical grouping key for cache invalidation (e.g., an install
@@ -90,6 +91,15 @@ interface AppIconRepository {
         preferSystemIcon: Boolean,
         userId: Int? = null
     ): Int?
+
+    /**
+     * Extracts the Material 3 seed color directly from an existing [Bitmap].
+     *
+     * @param bitmap The bitmap to extract color from, or null.
+     * @return The dominant seed color as an ARGB int, or null if [bitmap]
+     *         is null or extraction fails.
+     */
+    suspend fun extractColorFromBitmap(bitmap: Bitmap?): Int?
 
     /**
      * Extracts the Material 3 seed color directly from an existing [Drawable].

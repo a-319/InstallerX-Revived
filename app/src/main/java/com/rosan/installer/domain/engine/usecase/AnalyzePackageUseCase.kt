@@ -3,12 +3,14 @@
 package com.rosan.installer.domain.engine.usecase
 
 import com.rosan.installer.domain.engine.model.AnalyseExtraEntity
-import com.rosan.installer.domain.engine.model.AppEntity
-import com.rosan.installer.domain.engine.model.DataEntity
-import com.rosan.installer.domain.engine.model.PackageAnalysisResult
+import com.rosan.installer.domain.engine.model.packageinfo.AppEntity
+import com.rosan.installer.domain.engine.model.source.DataEntity
+import com.rosan.installer.domain.engine.model.packageinfo.PackageAnalysisResult
+import com.rosan.installer.domain.engine.provider.InstalledModuleInfoProvider
 import com.rosan.installer.domain.engine.repository.AnalyserRepository
 import com.rosan.installer.domain.engine.repository.AppIconRepository
-import com.rosan.installer.domain.settings.model.ConfigModel
+import com.rosan.installer.domain.settings.model.config.ConfigModel
+import com.rosan.installer.domain.settings.model.preferences.RootMode
 import com.rosan.installer.domain.settings.repository.AppSettingsRepository
 import com.rosan.installer.domain.settings.repository.BooleanSetting
 import kotlinx.coroutines.CancellationException
@@ -18,13 +20,16 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 
+private const val DISPLAY_ICON_SIZE_PX = 512
+
 /**
  * UseCase for analyzing installation sources (APKs, ZIPs, Modules).
- * It coordinates file parsing and optional dynamic color extraction.
+ * It coordinates file parsing, display icon preparation, and optional dynamic color extraction.
  */
 class AnalyzePackageUseCase(
     private val analyserRepository: AnalyserRepository,
     private val appIconRepository: AppIconRepository,
+    private val installedModuleInfoProvider: InstalledModuleInfoProvider,
     private val appSettingsRepo: AppSettingsRepository
 ) {
     /**
@@ -48,35 +53,76 @@ class AnalyzePackageUseCase(
 
         if (results.isEmpty()) return@coroutineScope emptyList()
 
+        val rootMode = appSettingsRepo.preferencesFlow.first().labRootMode
+        val enrichedResults = enrichInstalledModuleInfo(config, results, rootMode)
+
         // 2. Fetch user preferences regarding dynamic colors
         val useDynamicColor = appSettingsRepo.getBoolean(BooleanSetting.UiDynColorFollowPkgIcon, false).first()
         val useDynamicColorForLiveActivity = appSettingsRepo.getBoolean(BooleanSetting.LiveActivityDynColorFollowPkgIcon, false).first()
         val preferSystemIcon = appSettingsRepo.getBoolean(BooleanSetting.PreferSystemIconForInstall, false).first()
 
-        // 3. If dynamic color is enabled, concurrently extract seed colors from package icons
-        return@coroutineScope if (useDynamicColor || useDynamicColorForLiveActivity) {
-            results.map { res ->
-                async {
-                    if (!isActive) throw CancellationException()
+        // 3. Prepare display icons during analysis so UI stages can consume stable visual data.
+        enrichedResults.map { res ->
+            async {
+                if (!isActive) throw CancellationException()
 
-                    // Extract the base APK entity to find the icon
-                    val base = res.appEntities
-                        .map { it.app }
-                        .filterIsInstance<AppEntity.BaseEntity>()
-                        .firstOrNull()
+                val entityForIcon = res.appEntities
+                    .map { it.app }
+                    .let { entities ->
+                        entities.filterIsInstance<AppEntity.BaseEntity>().firstOrNull()
+                            ?: entities.filterIsInstance<AppEntity.ModuleEntity>().firstOrNull()
+                            ?: entities.firstOrNull()
+                    }
 
-                    // Extract color using the repository (abstracted from IconColorExtractor)
-                    val color = appIconRepository.extractColorFromApp(
-                        sessionId = sessionId,
-                        packageName = res.packageName,
-                        entityToInstall = base,
-                        preferSystemIcon = preferSystemIcon
-                    )
-                    res.copy(seedColor = color)
+                val displayIcon = appIconRepository.getIcon(
+                    sessionId = sessionId,
+                    packageName = res.packageName,
+                    entityToInstall = entityForIcon,
+                    userId = 0,
+                    iconSizePx = DISPLAY_ICON_SIZE_PX,
+                    preferSystemIcon = preferSystemIcon
+                )
+
+                val color = if (useDynamicColor || useDynamicColorForLiveActivity) {
+                    appIconRepository.extractColorFromBitmap(displayIcon)
+                } else {
+                    null
                 }
-            }.awaitAll()
-        } else {
-            results
+
+                res.copy(displayIcon = displayIcon, seedColor = color)
+            }
+        }.awaitAll()
+    }
+
+    private suspend fun enrichInstalledModuleInfo(
+        config: ConfigModel,
+        results: List<PackageAnalysisResult>,
+        rootMode: RootMode
+    ): List<PackageAnalysisResult> {
+        val hasModule = results.any { result ->
+            result.appEntities.any { it.app is AppEntity.ModuleEntity }
+        }
+        if (!hasModule) return results
+
+        val installedModules = runCatching {
+            installedModuleInfoProvider.list(config, rootMode)
+        }.getOrDefault(emptyList())
+        if (installedModules.isEmpty()) return results
+
+        val modulesById = installedModules.associateBy { it.id }
+        return results.map { result ->
+            val module = result.appEntities
+                .map { it.app }
+                .filterIsInstance<AppEntity.ModuleEntity>()
+                .firstOrNull()
+            val installedModule = modulesById[result.packageName]
+                ?: module?.let { modulesById[it.id] }
+
+            if (installedModule == null) {
+                result
+            } else {
+                result.copy(installedModuleInfo = installedModule)
+            }
         }
     }
 }

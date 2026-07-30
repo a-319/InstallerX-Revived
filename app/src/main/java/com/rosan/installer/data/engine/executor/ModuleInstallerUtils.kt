@@ -3,9 +3,10 @@
 package com.rosan.installer.data.engine.executor
 
 import com.rosan.installer.domain.engine.exception.ModuleInstallException
-import com.rosan.installer.domain.engine.model.AppEntity
-import com.rosan.installer.domain.engine.model.sourcePath
-import com.rosan.installer.domain.settings.model.RootMode
+import com.rosan.installer.domain.engine.model.packageinfo.AppEntity
+import com.rosan.installer.domain.engine.model.error.ModuleInstallErrorType
+import com.rosan.installer.domain.engine.model.install.sourcePath
+import com.rosan.installer.domain.settings.model.preferences.RootMode
 
 object ModuleInstallerUtils {
     /**
@@ -13,7 +14,10 @@ object ModuleInstallerUtils {
      */
     fun getModulePathOrThrow(module: AppEntity.ModuleEntity): String =
         module.data.sourcePath()
-            ?: throw ModuleInstallException("Could not resolve module file path for ${module.name}")
+            ?: throw ModuleInstallException(
+                errorType = ModuleInstallErrorType.GENERIC_FAILED,
+                message = "Could not resolve module file path for ${module.name}"
+            )
 
     /**
      * Returns the raw command arguments for installing a module.

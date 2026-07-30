@@ -34,8 +34,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.Archive
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -61,12 +59,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rosan.installer.R
+import com.rosan.installer.core.device.model.Manufacturer
 import com.rosan.installer.core.env.DeviceConfig
-import com.rosan.installer.domain.device.model.Manufacturer
-import com.rosan.installer.domain.engine.model.AppEntity
-import com.rosan.installer.domain.engine.model.DataType
-import com.rosan.installer.domain.engine.model.InstalledAppInfo
-import com.rosan.installer.domain.engine.model.sortedBest
+import com.rosan.installer.domain.engine.model.packageinfo.AppEntity
+import com.rosan.installer.domain.engine.model.packageinfo.InstalledAppInfo
+import com.rosan.installer.domain.engine.model.packageinfo.InstalledModuleInfo
+import com.rosan.installer.domain.engine.model.packageinfo.sortedBest
+import com.rosan.installer.domain.engine.model.source.DataType
 import com.rosan.installer.ui.icons.AppIcons
 import com.rosan.installer.ui.page.main.installer.InstallerStage
 import com.rosan.installer.ui.page.main.installer.InstallerViewAction
@@ -182,7 +181,8 @@ fun installInfoDialog(
                                 onLongPress = {
                                     // Copy the app name to clipboard on long press
                                     scope.launch {
-                                        val clipData = ClipData.newPlainText("App Name", displayLabel)
+                                        val clipData =
+                                            ClipData.newPlainText("App Name", displayLabel)
                                         clipboard.setClipEntry(clipData.toClipEntry())
                                         context.toast(R.string.copied_format, displayLabel)
                                     }
@@ -214,7 +214,7 @@ fun installInfoDialog(
                         ) {
                             if (isModule)
                                 Icon(
-                                    imageVector = Icons.TwoTone.Archive,
+                                    imageVector = AppIcons.Xposed,
                                     contentDescription = null,
                                     modifier = Modifier.padding(4.dp)
                                 )
@@ -250,7 +250,8 @@ fun installInfoDialog(
                                 onLongPress = {
                                     // Clipboard operations are suspend functions now
                                     scope.launch {
-                                        val clipData = ClipData.newPlainText("Package Name", rawPackageName)
+                                        val clipData =
+                                            ClipData.newPlainText("Package Name", rawPackageName)
                                         clipboard.setClipEntry(clipData.toClipEntry())
                                         context.toast(R.string.copied_format, rawPackageName)
                                     }
@@ -259,11 +260,11 @@ fun installInfoDialog(
                         }
                 )
 
-                Spacer(modifier = Modifier.size(8.dp))
                 // --- Version Info Display ---
                 when (entityToInstall) {
                     is AppEntity.BaseEntity -> {
                         if (preInstallAppInfo == null) {
+                            Spacer(modifier = Modifier.size(8.dp))
                             // 首次安装或无法获取旧信息: 只显示新版本，不带前缀
                             Text(
                                 text = stringResource(
@@ -274,7 +275,25 @@ fun installInfoDialog(
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.basicMarquee()
                             )
+                        } else if (
+                            settings.hideIdenticalComparisons &&
+                            !preInstallAppInfo.isArchived &&
+                            !preInstallAppInfo.isUninstalled &&
+                            preInstallAppInfo.versionName == entityToInstall.versionName &&
+                            preInstallAppInfo.versionCode == entityToInstall.versionCode
+                        ) {
+                            Spacer(modifier = Modifier.size(8.dp))
+                            Text(
+                                text = stringResource(
+                                    R.string.installer_version,
+                                    entityToInstall.versionName,
+                                    entityToInstall.versionCode
+                                ),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.basicMarquee()
+                            )
                         } else {
+                            Spacer(modifier = Modifier.size(8.dp))
                             //
                             // true = singleLine, false = multiLine
                             val defaultIsSingleLine = settings.versionCompareInSingleLine
@@ -328,16 +347,74 @@ fun installInfoDialog(
                     }
 
                     is AppEntity.ModuleEntity -> {
-                        // For modules, just show the current info without comparison.
-                        Text(
-                            text = stringResource(
-                                R.string.installer_version,
-                                entityToInstall.version,
-                                entityToInstall.versionCode
-                            ),
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.basicMarquee()
-                        )
+                        val installedModuleInfo = currentPackage.installedModuleInfo
+                        if (installedModuleInfo == null) {
+                            Spacer(modifier = Modifier.size(8.dp))
+                            Text(
+                                text = stringResource(
+                                    R.string.installer_version,
+                                    entityToInstall.version,
+                                    entityToInstall.versionCode
+                                ),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.basicMarquee()
+                            )
+                        } else if (
+                            settings.hideIdenticalComparisons &&
+                            installedModuleInfo.version == entityToInstall.version &&
+                            installedModuleInfo.versionCode == entityToInstall.versionCode
+                        ) {
+                            Spacer(modifier = Modifier.size(8.dp))
+                            Text(
+                                text = stringResource(
+                                    R.string.installer_version,
+                                    entityToInstall.version,
+                                    entityToInstall.versionCode
+                                ),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.basicMarquee()
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.size(8.dp))
+                            val defaultIsSingleLine = settings.versionCompareInSingleLine
+                            var contentState by remember {
+                                mutableStateOf(Pair(defaultIsSingleLine, false))
+                            }
+
+                            LaunchedEffect(defaultIsSingleLine) {
+                                if (contentState.first != defaultIsSingleLine) {
+                                    contentState = Pair(defaultIsSingleLine, false)
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    contentState = Pair(!contentState.first, true)
+                                }
+                            ) {
+                                AnimatedContent(
+                                    targetState = contentState,
+                                    transitionSpec = {
+                                        if (targetState.second) {
+                                            fadeIn(tween(200)) togetherWith fadeOut(tween(200)) using
+                                                    SizeTransform { _, _ -> tween(250) }
+                                        } else {
+                                            fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                                        }
+                                    },
+                                    label = "ModuleVersionViewAnimation"
+                                ) { state ->
+                                    if (state.first) {
+                                        ModuleVersionCompareSingleLine(installedModuleInfo, entityToInstall)
+                                    } else {
+                                        ModuleVersionCompareMultiLine(installedModuleInfo, entityToInstall)
+                                    }
+                                }
+                            }
+                        }
                         Spacer(modifier = Modifier.size(4.dp))
                         Text(
                             text = stringResource(
@@ -389,7 +466,10 @@ fun installInfoDialog(
                                         // compact single-line: 使用已有的短标签资源
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center,
+                                            horizontalArrangement = Arrangement.spacedBy(
+                                                16.dp,
+                                                Alignment.CenterHorizontally
+                                            ),
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
                                             entityToInstall.minSdk?.let { newMinSdk ->
@@ -399,10 +479,10 @@ fun installInfoDialog(
                                                     oldSdk = preInstallAppInfo?.minSdk?.toString(),
                                                     isUninstalled = preInstallAppInfo?.isUninstalled ?: false,
                                                     isArchived = preInstallAppInfo?.isArchived ?: false,
+                                                    hideIdenticalComparison = settings.hideIdenticalComparisons,
                                                     type = "min"
                                                 )
                                             }
-                                            Spacer(modifier = Modifier.size(16.dp))
                                             entityToInstall.targetSdk?.let { newTargetSdk ->
                                                 SdkInfoCompact(
                                                     shortLabelResId = R.string.installer_package_target_sdk_label_short,
@@ -410,6 +490,7 @@ fun installInfoDialog(
                                                     oldSdk = preInstallAppInfo?.targetSdk?.toString(),
                                                     isUninstalled = preInstallAppInfo?.isUninstalled ?: false,
                                                     isArchived = preInstallAppInfo?.isArchived ?: false,
+                                                    hideIdenticalComparison = settings.hideIdenticalComparisons,
                                                     type = "target"
                                                 )
                                             }
@@ -428,6 +509,7 @@ fun installInfoDialog(
                                                     oldSdk = preInstallAppInfo?.minSdk?.toString(),
                                                     isUninstalled = preInstallAppInfo?.isUninstalled ?: false,
                                                     isArchived = preInstallAppInfo?.isArchived ?: false,
+                                                    hideIdenticalComparison = settings.hideIdenticalComparisons,
                                                     type = "min"
                                                 )
                                             }
@@ -438,6 +520,7 @@ fun installInfoDialog(
                                                     oldSdk = preInstallAppInfo?.targetSdk?.toString(),
                                                     isUninstalled = preInstallAppInfo?.isUninstalled ?: false,
                                                     isArchived = preInstallAppInfo?.isArchived ?: false,
+                                                    hideIdenticalComparison = settings.hideIdenticalComparisons,
                                                     type = "target"
                                                 )
                                             }
@@ -449,12 +532,14 @@ fun installInfoDialog(
                     }
                 }
                 // --- Size Display ---
+                val installedSize = preInstallAppInfo?.packageSize ?: 0L
                 AnimatedVisibility(visible = config.displaySize && totalSize > 0L) {
                     Column {
                         Spacer(modifier = Modifier.size(8.dp))
                         SizeInfoDisplay(
-                            oldSize = preInstallAppInfo?.packageSize ?: 0L,
-                            newSize = totalSize
+                            oldSize = installedSize,
+                            newSize = totalSize,
+                            hideIdenticalComparison = settings.hideIdenticalComparisons
                         )
                     }
                 }
@@ -486,6 +571,108 @@ fun installInfoDialog(
 }
 
 
+@Composable
+private fun ModuleVersionCompareMultiLine(
+    installedModuleInfo: InstalledModuleInfo,
+    entityToInstall: AppEntity.ModuleEntity
+) {
+    val isDowngrade = installedModuleInfo.versionCode?.let { it > entityToInstall.versionCode } == true
+    val isOverwrite = installedModuleInfo.versionCode == entityToInstall.versionCode
+    val statusColor = if (isDowngrade) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+
+    val oldVersionFormatted = stringResource(
+        R.string.installer_version_short,
+        installedModuleInfo.version.orEmpty(),
+        installedModuleInfo.versionCode?.toString().orEmpty()
+    )
+    val newVersionFormatted = stringResource(
+        R.string.installer_version_short,
+        entityToInstall.version,
+        entityToInstall.versionCode
+    )
+
+    val oldPrefix = stringResource(R.string.old_version_prefix)
+    val newPrefix = if (isDowngrade) {
+        stringResource(R.string.downgrade_version_prefix)
+    } else if (isOverwrite) {
+        stringResource(R.string.overwrite_version_prefix)
+    } else {
+        stringResource(R.string.upgrade_version_prefix)
+    }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = stringResource(
+                R.string.version_with_prefix_format,
+                oldPrefix,
+                oldVersionFormatted
+            ),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.basicMarquee()
+        )
+
+        Icon(
+            imageVector = AppIcons.ArrowDropDownFilled,
+            contentDescription = "to",
+            tint = statusColor,
+            modifier = Modifier.size(24.dp)
+        )
+
+        Text(
+            text = stringResource(
+                R.string.version_with_prefix_format,
+                newPrefix,
+                newVersionFormatted
+            ),
+            color = statusColor,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.basicMarquee()
+        )
+    }
+}
+
+@Composable
+private fun ModuleVersionCompareSingleLine(
+    installedModuleInfo: InstalledModuleInfo,
+    entityToInstall: AppEntity.ModuleEntity
+) {
+    val isDowngrade = installedModuleInfo.versionCode?.let { it > entityToInstall.versionCode } == true
+    val color = if (isDowngrade) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    val oldVersionText = stringResource(
+        R.string.installer_version_short,
+        installedModuleInfo.version.orEmpty(),
+        installedModuleInfo.versionCode?.toString().orEmpty()
+    )
+    val newVersionText = stringResource(
+        R.string.installer_version2,
+        entityToInstall.version,
+        entityToInstall.versionCode
+    )
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+    ) {
+        Text(text = oldVersionText, textAlign = TextAlign.Center)
+        Icon(
+            imageVector = AppIcons.ArrowRight,
+            contentDescription = "to",
+            tint = color,
+            modifier = Modifier.size(24.dp)
+        )
+        Text(
+            text = newVersionText,
+            color = color,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
 /**
  * Composable for displaying version comparison in multiple lines (the original style).
  */
@@ -496,6 +683,7 @@ private fun VersionCompareMultiLine(
 ) {
     // 1. Determine the installation status (downgrade or upgrade/equal)
     val isDowngrade = preInstallAppInfo.versionCode > entityToInstall.versionCode
+    val isOverwrite = preInstallAppInfo.versionCode == entityToInstall.versionCode
 
     // 2. Centralize the color logic based on the status
     val statusColor = if (isDowngrade) {
@@ -527,6 +715,8 @@ private fun VersionCompareMultiLine(
     val oldPrefix = stringResource(R.string.old_version_prefix)
     val newPrefix = if (isDowngrade) {
         stringResource(R.string.downgrade_version_prefix)
+    } else if (isOverwrite) {
+        stringResource(R.string.overwrite_version_prefix)
     } else {
         stringResource(R.string.upgrade_version_prefix)
     }
@@ -616,12 +806,14 @@ private fun SdkInfoCompact(
     oldSdk: String?,
     isUninstalled: Boolean = false,
     isArchived: Boolean = false,
+    hideIdenticalComparison: Boolean,
     type: String
 ) {
     val newSdkInt = newSdk.toIntOrNull()
     val oldSdkInt = oldSdk?.toIntOrNull()
 
-    val showComparison = oldSdkInt != null && newSdkInt != null && newSdkInt != oldSdkInt
+    val showComparison = oldSdkInt != null && newSdkInt != null &&
+            (!hideIdenticalComparison || newSdkInt != oldSdkInt)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -681,11 +873,13 @@ private fun SdkInfoExpanded(
     oldSdk: String?,
     isUninstalled: Boolean = false,
     isArchived: Boolean = false,
+    hideIdenticalComparison: Boolean,
     type: String
 ) {
     val newSdkInt = newSdk.toIntOrNull()
     val oldSdkInt = oldSdk?.toIntOrNull()
-    val showComparison = oldSdkInt != null && newSdkInt != null && newSdkInt != oldSdkInt
+    val showComparison = oldSdkInt != null && newSdkInt != null &&
+            (!hideIdenticalComparison || newSdkInt != oldSdkInt)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -785,9 +979,10 @@ private fun SdkValueWithIcon(
 @Composable
 private fun SizeInfoDisplay(
     oldSize: Long,
-    newSize: Long
+    newSize: Long,
+    hideIdenticalComparison: Boolean
 ) {
-    val showComparison = oldSize > 0L && oldSize != newSize
+    val showComparison = oldSize > 0L && (!hideIdenticalComparison || oldSize != newSize)
     var showDiffOnly by remember { mutableStateOf(false) }
 
     Box(

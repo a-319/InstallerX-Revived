@@ -20,12 +20,18 @@ class DialogSettingsViewModel(
 
     val state: StateFlow<DialogSettingsState> = appSettingsRepo.preferencesFlow.map { prefs ->
         DialogSettingsState(
+            hideIdenticalComparisons = prefs.hideIdenticalInstallComparisons,
             versionCompareInSingleLine = prefs.versionCompareInSingleLine,
             sdkCompareInMultiLine = prefs.sdkCompareInMultiLine,
             showDialogInstallExtendedMenu = prefs.showDialogInstallExtendedMenu,
+            expandTemporarySettingsByDefault = prefs.expandDialogTemporarySettingsByDefault,
             showSmartSuggestion = prefs.showSmartSuggestion,
             autoSilentInstall = prefs.autoSilentInstall,
-            disableNotificationForDialogInstall = prefs.disableNotificationForDialogInstall
+            longClickBackgroundInstall = prefs.longClickBackgroundInstall,
+            disableNotificationForDialogInstall = prefs.disableNotificationForDialogInstall,
+            tapIconToShare = prefs.labTapIconToShare,
+            showFilePath = prefs.labShowFilePath,
+            showInstallInitiator = prefs.labShowInstallInitiator
         )
     }.stateIn(
         scope = viewModelScope,
@@ -35,6 +41,10 @@ class DialogSettingsViewModel(
 
     fun dispatch(action: DialogSettingsAction) {
         when (action) {
+            is DialogSettingsAction.ChangeHideIdenticalComparisons -> viewModelScope.launch {
+                updateSetting(BooleanSetting.DialogHideIdenticalComparisons, action.hide)
+            }
+
             is DialogSettingsAction.ChangeVersionCompareInSingleLine -> viewModelScope.launch {
                 updateSetting(BooleanSetting.DialogVersionCompareSingleLine, action.compareInSingleLine)
             }
@@ -47,6 +57,10 @@ class DialogSettingsViewModel(
                 updateSetting(BooleanSetting.DialogShowExtendedMenu, action.showMenu)
             }
 
+            is DialogSettingsAction.ChangeExpandTemporarySettingsByDefault -> viewModelScope.launch {
+                updateSetting(BooleanSetting.DialogExpandTemporarySettingsByDefault, action.expand)
+            }
+
             is DialogSettingsAction.ChangeShowSuggestion -> viewModelScope.launch {
                 updateSetting(BooleanSetting.DialogShowIntelligentSuggestion, action.showSuggestion)
             }
@@ -55,8 +69,24 @@ class DialogSettingsViewModel(
                 updateSetting(BooleanSetting.DialogAutoSilentInstall, action.autoSilentInstall)
             }
 
+            is DialogSettingsAction.ChangeLongClickBackgroundInstall -> viewModelScope.launch {
+                updateSetting(BooleanSetting.DialogLongClickBackgroundInstall, action.enable)
+            }
+
             is DialogSettingsAction.ChangeShowDisableNotification -> viewModelScope.launch {
                 updateSetting(BooleanSetting.DialogDisableNotificationOnDismiss, action.disable)
+            }
+
+            is DialogSettingsAction.ChangeTapIconToShare -> viewModelScope.launch {
+                updateSetting(BooleanSetting.LabTapIconToShare, action.enable)
+            }
+
+            is DialogSettingsAction.ChangeShowFilePath -> viewModelScope.launch {
+                updateSetting(BooleanSetting.LabShowFilePath, action.enable)
+            }
+
+            is DialogSettingsAction.ChangeShowInstallInitiator -> viewModelScope.launch {
+                updateSetting(BooleanSetting.LabShowInstallInitiator, action.enable)
             }
         }
     }

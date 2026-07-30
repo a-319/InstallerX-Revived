@@ -6,19 +6,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rosan.installer.R
 import com.rosan.installer.domain.privileged.usecase.GetAvailableUsersUseCase
-import com.rosan.installer.domain.settings.model.Authorizer
-import com.rosan.installer.domain.settings.model.ConfigModel
-import com.rosan.installer.domain.settings.model.DexoptMode
-import com.rosan.installer.domain.settings.model.InstallMode
-import com.rosan.installer.domain.settings.model.InstallReason
-import com.rosan.installer.domain.settings.model.InstallerMode
-import com.rosan.installer.domain.settings.model.PackageSource
+import com.rosan.installer.domain.settings.model.config.Authorizer
+import com.rosan.installer.domain.settings.model.config.ConfigModel
+import com.rosan.installer.domain.settings.model.config.DexoptMode
+import com.rosan.installer.domain.settings.model.config.InstallRequesterMode
+import com.rosan.installer.domain.settings.model.config.InstallMode
+import com.rosan.installer.domain.settings.model.config.InstallReason
+import com.rosan.installer.domain.settings.model.config.InstallerMode
+import com.rosan.installer.domain.settings.model.config.PackageSource
+import com.rosan.installer.domain.settings.model.config.ToastMode
 import com.rosan.installer.domain.settings.repository.AppSettingsRepository
-import com.rosan.installer.domain.settings.repository.BooleanSetting
 import com.rosan.installer.domain.settings.repository.NamedPackageListSetting
 import com.rosan.installer.domain.settings.usecase.config.GetConfigDraftUseCase
 import com.rosan.installer.domain.settings.usecase.config.SaveConfigUseCase
 import com.rosan.installer.domain.settings.usecase.settings.GetPackageUidUseCase
+import com.rosan.installer.ui.util.isDhizukuActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -56,19 +58,20 @@ class EditViewModel(
         combine(
             appSettingsRepo.preferencesFlow,
             appSettingsRepo.getNamedPackageList(NamedPackageListSetting.ManagedInstallerPackages),
-            appSettingsRepo.getBoolean(BooleanSetting.LabSetInstallRequester),
-            ::Triple
+            ::Pair
         )
     ) { data, originalData, availableUsers, settings ->
-        val (prefs, managedInstallerPackages, isCustomInstallRequesterEnabled) = settings
+        val (prefs, managedInstallerPackages) = settings
         EditViewState(
             data = data,
             originalData = originalData,
             availableUsers = availableUsers,
             managedInstallerPackages = managedInstallerPackages,
-            isCustomInstallRequesterEnabled = isCustomInstallRequesterEnabled,
             globalAuthorizer = prefs.authorizer,
-            globalInstallerBiometricAuthMode = prefs.installerRequireBiometricAuth
+            globalCustomizeAuthorizer = prefs.customizeAuthorizer,
+            globalInstallerBiometricAuthMode = prefs.installerRequireBiometricAuth,
+            checkAppSignature = prefs.checkAppSignature,
+            labRespectPlatformInstallPolicy = prefs.labRespectPlatformInstallPolicy
         )
     }.stateIn(
         scope = viewModelScope,
@@ -93,12 +96,13 @@ class EditViewModel(
                     is EditViewAction.ChangeDataAuthorizer -> changeDataAuthorizer(action.authorizer)
                     is EditViewAction.ChangeDataCustomizeAuthorizer -> changeDataCustomizeAuthorizer(action.customizeAuthorizer)
                     is EditViewAction.ChangeDataInstallMode -> changeDataInstallMode(action.installMode)
-                    is EditViewAction.ChangeDataShowToast -> changeDataShowToast(action.showToast)
+                    is EditViewAction.ChangeDataAutoApproveSession -> changeDataAutoApproveSession(action.autoApproveSession)
+                    is EditViewAction.ChangeDataToastMode -> changeDataToastMode(action.toastMode)
                     is EditViewAction.ChangeDataEnableCustomizePackageSource -> changeDataEnableCustomPackageSource(action.enable)
                     is EditViewAction.ChangeDataPackageSource -> changeDataPackageSource(action.packageSource)
                     is EditViewAction.ChangeDataEnableCustomizeInstallReason -> changeDataEnableCustomInstallReason(action.enable)
                     is EditViewAction.ChangeDataInstallReason -> changeDataInstallReason(action.installReason)
-                    is EditViewAction.ChangeDataEnableCustomizeInstallRequester -> changeDataEnableCustomInstallRequester(action.enable)
+                    is EditViewAction.ChangeDataInstallRequesterMode -> changeDataInstallRequesterMode(action.mode)
                     is EditViewAction.ChangeDataInstallRequester -> changeDataInstallRequester(action.packageName)
                     is EditViewAction.ChangeDataInstallerMode -> changeDataInstallerMode(action.installerMode)
                     is EditViewAction.ChangeDataInstaller -> changeDataInstaller(action.installer)
@@ -115,6 +119,8 @@ class EditViewModel(
                     is EditViewAction.ChangeDataAllowTestOnly -> changeDataAllowTestOnly(action.allowTestOnly)
                     is EditViewAction.ChangeDataAllowDowngrade -> changeDataAllowDowngrade(action.allowDowngrade)
                     is EditViewAction.ChangeDataBypassLowTargetSdk -> changeDataBypassLowTargetSdk(action.bypassLowTargetSdk)
+                    is EditViewAction.ChangeDataAllowSigMismatch -> changeDataAllowSigMismatch(action.allowSigMismatch)
+                    is EditViewAction.ChangeDataAllowSigUnknown -> changeDataAllowSigUnknown(action.allowSigUnknown)
                     is EditViewAction.ChangeDataAllowAllRequestedPermissions -> changeDataAllowAllRequestedPermissions(action.allowAllRequestedPermissions)
                     is EditViewAction.ChangeDataRequestUpdateOwnership -> changeDataRequestUpdateOwnership(action.requestUpdateOwnership)
                     is EditViewAction.ChangeSplitChooseAll -> changeSplitChooseAll(action.splitChooseAll)
@@ -144,40 +150,33 @@ class EditViewModel(
     }
 
     private fun changeDataAuthorizer(authorizer: Authorizer) {
-        _data.update { currentData ->
-            var updatedData = currentData.copy(authorizer = authorizer)
-            val effectiveAuthorizer = if (authorizer == Authorizer.Global) state.value.globalAuthorizer else authorizer
-
-            if (effectiveAuthorizer == Authorizer.Dhizuku) {
-                updatedData = updatedData.copy(
-                    enableCustomizePackageSource = false,
-                    installerMode = InstallerMode.Self,
-                    enableCustomizeUser = false,
-                    enableManualDexopt = false
-                )
-            }
-            updatedData
-        }
+        _data.update { currentData -> currentData.copy(authorizer = authorizer) }
 
         // Handle side-effects after state is safely updated
-        if (_data.value.enableCustomizeUser) {
+        if (_data.value.enableCustomizeUser && !isDhizukuActive(authorizer, state.value.globalAuthorizer)) {
             loadAvailableUsers()
         } else {
             _availableUsers.value = emptyMap()
-            _data.update { it.copy(targetUserId = 0) }
         }
     }
 
     private fun changeDataCustomizeAuthorizer(customizeAuthorizer: String) {
         _data.update { it.copy(customizeAuthorizer = customizeAuthorizer) }
+        if (_data.value.enableCustomizeUser && effectiveAuthorizer() == Authorizer.Customize) {
+            loadAvailableUsers()
+        }
     }
 
     private fun changeDataInstallMode(installMode: InstallMode) {
         _data.update { it.copy(installMode = installMode) }
     }
 
-    private fun changeDataShowToast(showToast: Boolean) {
-        _data.update { it.copy(showToast = showToast) }
+    private fun changeDataAutoApproveSession(autoApproveSession: Boolean) {
+        _data.update { it.copy(autoApproveSession = autoApproveSession) }
+    }
+
+    private fun changeDataToastMode(toastMode: ToastMode) {
+        _data.update { it.copy(toastMode = toastMode) }
     }
 
     private fun changeDataEnableCustomInstallReason(enable: Boolean) {
@@ -196,9 +195,14 @@ class EditViewModel(
         _data.update { it.copy(packageSource = packageSource) }
     }
 
-    private fun changeDataEnableCustomInstallRequester(enable: Boolean) {
-        _data.update { it.copy(enableCustomizeInstallRequester = enable) }
-        if (enable) {
+    private fun changeDataInstallRequesterMode(mode: InstallRequesterMode) {
+        _data.update {
+            it.copy(
+                installRequesterMode = mode,
+                installRequesterUid = if (mode == InstallRequesterMode.Custom) it.installRequesterUid else null
+            )
+        }
+        if (mode == InstallRequesterMode.Custom) {
             changeDataInstallRequester(_data.value.installRequester)
         }
     }
@@ -292,6 +296,14 @@ class EditViewModel(
         _data.update { it.copy(bypassLowTargetSdk = bypassLowTargetSdk) }
     }
 
+    private fun changeDataAllowSigMismatch(allow: Boolean) {
+        _data.update { it.copy(allowSigMismatch = allow) }
+    }
+
+    private fun changeDataAllowSigUnknown(allow: Boolean) {
+        _data.update { it.copy(allowSigUnknown = allow) }
+    }
+
     private fun changeDataAllowAllRequestedPermissions(allowAllRequestedPermissions: Boolean) {
         _data.update { it.copy(allowAllRequestedPermissions = allowAllRequestedPermissions) }
     }
@@ -315,10 +327,10 @@ class EditViewModel(
     private fun loadAvailableUsers() {
         viewModelScope.launch {
             val currentData = _data.value
-            val authorizer =
-                if (currentData.authorizer == Authorizer.Global) state.value.globalAuthorizer else currentData.authorizer
+            val authorizer = effectiveAuthorizer()
+            val customizeAuthorizer = effectiveCustomizeAuthorizer(currentData)
 
-            val newAvailableUsers = getAvailableUsers(authorizer).getOrElse { emptyMap() }
+            val newAvailableUsers = getAvailableUsers(authorizer, customizeAuthorizer).getOrElse { emptyMap() }
 
             _availableUsers.value = newAvailableUsers
 
@@ -329,6 +341,18 @@ class EditViewModel(
             }
         }
     }
+
+    private fun effectiveAuthorizer(): Authorizer {
+        val currentData = _data.value
+        return if (currentData.authorizer == Authorizer.Global) state.value.globalAuthorizer else currentData.authorizer
+    }
+
+    private fun effectiveCustomizeAuthorizer(data: EditViewState.Data = _data.value): String =
+        if (data.authorizer == Authorizer.Global && state.value.globalAuthorizer == Authorizer.Customize) {
+            state.value.globalCustomizeAuthorizer
+        } else {
+            data.customizeAuthorizer
+        }
 
     private var loadDataJob: Job? = null
 
@@ -361,8 +385,9 @@ class EditViewModel(
             var model = currentData.toConfigModel()
             if (id != null) model = model.copy(id = id)
             val hasRequesterUid = currentData.installRequesterUid != null
+            val installerRequired = !isDhizukuActive(currentData.authorizer, state.value.globalAuthorizer)
 
-            val result = saveConfig(model, hasRequesterUid)
+            val result = saveConfig(model, hasRequesterUid, installerRequired)
 
             result.onSuccess {
                 _originalData.value = currentData

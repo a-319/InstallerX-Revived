@@ -4,6 +4,7 @@ package com.rosan.installer.ui.page.main.settings.preferred.lab
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rosan.installer.domain.settings.model.preferences.SmartAuthorizerPreferences
 import com.rosan.installer.domain.settings.repository.AppSettingsRepository
 import com.rosan.installer.domain.settings.repository.BooleanSetting
 import com.rosan.installer.domain.settings.repository.StringSetting
@@ -24,13 +25,12 @@ class LabSettingsViewModel(
             labRootEnableModuleFlash = prefs.labRootEnableModuleFlash,
             labRootShowModuleArt = prefs.labRootShowModuleArt,
             labRootMode = prefs.labRootMode,
-            labSetInstallRequester = prefs.labSetInstallRequester,
             labHttpProfile = prefs.labHttpProfile,
             labHttpSaveFile = prefs.labHttpSaveFile,
-            labTapIconToShare = prefs.labTapIconToShare,
-            labShowFilePath = prefs.labShowFilePath,
-            labShowInstallInitiator = prefs.labShowInstallInitiator,
             labAllowInstallWithoutUserAction = prefs.labInstallWithoutUserAction,
+            labRespectPlatformInstallPolicy = prefs.labRespectPlatformInstallPolicy,
+            tryMultipleAuthorizersOnInstall = prefs.tryMultipleAuthorizersOnInstall,
+            smartAuthorizerCandidates = prefs.smartAuthorizerCandidates,
             githubUpdateChannel = prefs.githubUpdateChannel,
             customGithubProxyUrl = prefs.customGithubProxyUrl
         )
@@ -63,13 +63,6 @@ class LabSettingsViewModel(
                 )
             }
 
-            is LabSettingsAction.LabChangeSetInstallRequester -> viewModelScope.launch {
-                updateSetting(
-                    BooleanSetting.LabSetInstallRequester,
-                    action.enable
-                )
-            }
-
             is LabSettingsAction.LabChangeHttpProfile -> viewModelScope.launch {
                 updateSetting(
                     StringSetting.LabHttpProfile,
@@ -84,31 +77,31 @@ class LabSettingsViewModel(
                 )
             }
 
-            is LabSettingsAction.LabChangeTapIconToShare -> viewModelScope.launch {
-                updateSetting(
-                    BooleanSetting.LabTapIconToShare,
-                    action.enable
-                )
-            }
-
-            is LabSettingsAction.LabChangeShowFilePath -> viewModelScope.launch {
-                updateSetting(
-                    BooleanSetting.LabShowFilePath,
-                    action.enable
-                )
-            }
-
-            is LabSettingsAction.LabChangeShowInstallInitiator -> viewModelScope.launch {
-                updateSetting(
-                    BooleanSetting.LabShowInstallInitiator,
-                    action.enable
-                )
-            }
-
             is LabSettingsAction.LabChangeAllowInstallWithoutUserAction -> viewModelScope.launch {
                 updateSetting(
                     BooleanSetting.LabInstallWithoutUserAction,
                     action.enable
+                )
+            }
+
+            is LabSettingsAction.LabChangeRespectPlatformInstallPolicy -> viewModelScope.launch {
+                updateSetting(
+                    BooleanSetting.LabRespectPlatformInstallPolicy,
+                    action.enable
+                )
+            }
+
+            is LabSettingsAction.LabChangeTryMultipleAuthorizersOnInstall -> viewModelScope.launch {
+                updateSetting(
+                    BooleanSetting.TryMultipleAuthorizersOnInstall,
+                    action.enable
+                )
+            }
+
+            is LabSettingsAction.LabChangeSmartAuthorizerCandidates -> viewModelScope.launch {
+                updateSetting(
+                    StringSetting.SmartAuthorizerCandidates,
+                    SmartAuthorizerPreferences.encode(action.candidates)
                 )
             }
 

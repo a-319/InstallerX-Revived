@@ -5,8 +5,13 @@ on:
     branches-ignore:
       - 'main'
       - 'weblate-dev'
+      - 'renovate/**'
     paths:
       - 'app/**'
+      - 'app-process/**'
+      - 'hidden-api/**'
+      - 'baselineprofile/**'
+      - 'build-plugins/**'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
       - 'gradle.properties'
@@ -45,7 +50,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

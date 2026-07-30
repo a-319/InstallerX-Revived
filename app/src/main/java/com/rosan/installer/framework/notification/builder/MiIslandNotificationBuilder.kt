@@ -9,11 +9,11 @@ import android.graphics.Color
 import android.graphics.drawable.Icon
 import androidx.core.app.NotificationCompat
 import com.rosan.installer.R
-import com.rosan.installer.domain.engine.model.DataType
-import com.rosan.installer.domain.engine.model.getInfo
+import com.rosan.installer.domain.engine.model.packageinfo.getInfo
+import com.rosan.installer.domain.engine.model.source.DataType
 import com.rosan.installer.domain.session.model.ProgressEntity
 import com.rosan.installer.domain.session.repository.InstallerSessionRepository
-import com.rosan.installer.domain.settings.model.InstallMode
+import com.rosan.installer.domain.settings.model.config.InstallMode
 import com.rosan.installer.framework.notification.NotificationHelper
 import com.rosan.installer.util.getErrorMessage
 import com.xzakota.hyper.notification.focus.FocusNotification
@@ -189,6 +189,22 @@ class MiIslandNotificationBuilder(
                 actionsList.add(IslandAction("miui_action_retry", context.getString(R.string.retry), helper.installIntent))
             }
 
+            is ProgressEntity.InstallWaitingUnknownSource -> {
+                title = context.getString(R.string.installer_waiting_unknown_source)
+                shortText = context.getString(R.string.installer_waiting_unknown_source)
+                contentText = helper.unknownSourceDescription()
+                showAppIcon = false
+                actionsList.add(
+                    IslandAction(
+                        "miui_action_unknown_source",
+                        context.getString(R.string.suggestion_allow_unknown_source),
+                        helper.unknownSourceIntent,
+                        true
+                    )
+                )
+                actionsList.add(IslandAction("miui_action_cancel", context.getString(R.string.cancel), helper.finishIntent))
+            }
+
             else -> {}
         }
 
@@ -345,11 +361,11 @@ class MiIslandNotificationBuilder(
     private fun createBaseBuilder(progress: ProgressEntity, background: Boolean, showDialog: Boolean): NotificationCompat.Builder {
         val isWorking =
             progress is ProgressEntity.Ready || progress is ProgressEntity.InstallResolving || progress is ProgressEntity.InstallResolveSuccess || progress is ProgressEntity.InstallAnalysing || progress is ProgressEntity.InstallAnalysedSuccess || progress is ProgressEntity.Installing || progress is ProgressEntity.InstallingModule || progress is ProgressEntity.InstallSuccess || progress is ProgressEntity.InstallCompleted
-        val isImportance =
-            progress is ProgressEntity.InstallResolvedFailed || progress is ProgressEntity.InstallAnalysedFailed || progress is ProgressEntity.InstallAnalysedSuccess || progress is ProgressEntity.InstallFailed || progress is ProgressEntity.InstallSuccess || progress is ProgressEntity.InstallCompleted
-
-        val channelEnum =
-            if (isImportance && background) NotificationHelper.Channel.InstallerChannel else NotificationHelper.Channel.InstallerProgressChannel
+        // Keep Xiaomi Island updates on one channel. Switching between the normal
+        // installer and progress channels causes MIUI's island renderer to rebuild
+        // the live notification between stages, which shows up as a flash or a
+        // short black gap.
+        val channelEnum = NotificationHelper.Channel.InstallerLiveChannel
         val icon = (if (isWorking) NotificationHelper.Icon.Working else NotificationHelper.Icon.Pausing).resId
         val contentIntent =
             if (session.config.installMode == InstallMode.Notification || session.config.installMode == InstallMode.AutoNotification) {

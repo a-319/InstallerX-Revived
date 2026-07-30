@@ -45,27 +45,26 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rosan.installer.R
 import com.rosan.installer.core.env.DeviceConfig
-import com.rosan.installer.domain.device.model.Manufacturer
-import com.rosan.installer.domain.engine.model.AppEntity
-import com.rosan.installer.domain.engine.model.DataType
-import com.rosan.installer.domain.engine.model.InstalledAppInfo
-import com.rosan.installer.domain.engine.model.sortedBest
-import com.rosan.installer.domain.engine.model.sourcePath
+import com.rosan.installer.core.device.model.Manufacturer
+import com.rosan.installer.domain.engine.model.packageinfo.AppEntity
+import com.rosan.installer.domain.engine.model.source.DataType
+import com.rosan.installer.domain.engine.model.packageinfo.InstalledAppInfo
+import com.rosan.installer.domain.engine.model.packageinfo.sortedBest
+import com.rosan.installer.domain.engine.model.install.sourcePath
 import com.rosan.installer.domain.engine.usecase.AnalyzeInstallStateUseCase
-import com.rosan.installer.domain.settings.model.Authorizer
+import com.rosan.installer.domain.settings.model.config.Authorizer
 import com.rosan.installer.ui.icons.AppIcons
 import com.rosan.installer.ui.page.main.installer.InstallerViewAction
 import com.rosan.installer.ui.page.main.installer.InstallerViewModel
-import com.rosan.installer.ui.page.main.installer.dialog.inner.InstallNoticeResources
+import com.rosan.installer.ui.page.main.installer.mapper.InstallNoticeResources
 import com.rosan.installer.ui.page.main.installer.mapper.InstallStateUiMapper
 import com.rosan.installer.ui.page.miuix.installer.components.AdaptiveInfoRow
 import com.rosan.installer.ui.page.miuix.installer.components.AppInfoSlot
 import com.rosan.installer.ui.page.miuix.installer.components.AppInfoState
-import com.rosan.installer.ui.page.miuix.settings.preferred.MiuixNavigationItemWidget
 import com.rosan.installer.ui.page.miuix.widgets.MiuixInfoChipGroup
 import com.rosan.installer.ui.page.miuix.widgets.MiuixInstallerTipCard
-import com.rosan.installer.ui.theme.InstallerTheme
-import com.rosan.installer.ui.theme.miuixSheetCardColorDark
+import com.rosan.installer.ui.page.miuix.widgets.MiuixNavigationItemWidget
+import com.rosan.installer.ui.theme.miuixSheetCardColors
 import com.rosan.installer.ui.util.formatSize
 import com.rosan.installer.ui.util.isGestureNavigation
 import com.rosan.installer.util.toast
@@ -75,7 +74,6 @@ import org.koin.compose.koinInject
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -93,7 +91,6 @@ fun InstallPrepareContent(
     val context = LocalContext.current
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    val isDarkMode = InstallerTheme.isDark
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val config = uiState.config
     val currentPackageName = uiState.currentPackageName
@@ -147,8 +144,40 @@ fun InstallPrepareContent(
     val tagDowngrade = stringResource(R.string.tag_downgrade)
     val downgradeWarning = stringResource(R.string.installer_prepare_type_downgrade)
     val tagSignature = stringResource(R.string.tag_signature)
+    val tagSignatureMatch = stringResource(R.string.tag_signature_match)
+    val tagSignatureRotation = stringResource(R.string.tag_signature_rotation)
+    val tagSignatureRotationUnconfirmed = stringResource(R.string.tag_signature_rotation_unconfirmed)
+    val sigNewInstall = stringResource(R.string.installer_prepare_signature_new_install)
+    val sigMatch = stringResource(R.string.installer_prepare_signature_match)
+    val sigRotationCompatible = stringResource(R.string.installer_prepare_signature_rotation_compatible)
+    val sigCandidateRotationUnconfirmed =
+        stringResource(R.string.installer_prepare_signature_candidate_rotation_unconfirmed)
     val sigMismatchWarning = stringResource(R.string.installer_prepare_signature_mismatch)
     val sigUnknownWarning = stringResource(R.string.installer_prepare_signature_unknown)
+    val sigAnalysisIssue = stringResource(R.string.installer_prepare_signature_analysis_issue)
+    val labelPendingSignature = stringResource(R.string.installer_signature_pending_package)
+    val labelInstalledSignature = stringResource(R.string.installer_signature_installed_package)
+    val labelSignatureAnalysisIssues = stringResource(R.string.installer_signature_analysis_issues)
+    val labelSignatureVerificationFailedFiles = stringResource(R.string.installer_signature_verification_failed_files)
+    val labelSignatureSplitMismatchFiles = stringResource(R.string.installer_signature_split_mismatch_files)
+    val labelSignatureDuplicateSplitNames = stringResource(R.string.installer_signature_duplicate_split_names)
+    val labelSignatureSchemes = stringResource(R.string.installer_signature_schemes)
+    val labelSignatureCertificate = stringResource(R.string.installer_signature_certificate)
+    val labelSignatureCurrentCertificate = stringResource(R.string.installer_signature_current_certificate)
+    val labelSignatureCertificateLineage = stringResource(R.string.installer_signature_certificate_lineage)
+    val labelSignatureLineageCertificate = stringResource(R.string.installer_signature_lineage_certificate)
+    val labelSignatureCurrentMarker = stringResource(R.string.installer_signature_current_marker)
+    val labelSignatureSha256 = stringResource(R.string.installer_signature_sha256)
+    val labelSignatureSha1 = stringResource(R.string.installer_signature_sha1)
+    val labelSignatureSubject = stringResource(R.string.installer_signature_subject)
+    val labelSignatureIssuer = stringResource(R.string.installer_signature_issuer)
+    val labelSignatureValidFrom = stringResource(R.string.installer_signature_valid_from)
+    val labelSignatureValidUntil = stringResource(R.string.installer_signature_valid_until)
+    val labelSignaturePublicKeyAlgorithm = stringResource(R.string.installer_signature_public_key_algorithm)
+    val labelSignatureAlgorithm = stringResource(R.string.installer_signature_algorithm)
+    val labelSignatureWarnings = stringResource(R.string.installer_signature_warnings)
+    val labelSignatureErrors = stringResource(R.string.installer_signature_errors)
+    val labelSignatureNoCertificates = stringResource(R.string.installer_signature_no_certificates)
     val tagSdk = stringResource(R.string.tag_sdk)
     val sdkIncompatibleWarning = stringResource(R.string.installer_prepare_sdk_incompatible)
     val tagArch32 = stringResource(R.string.tag_arch_32)
@@ -166,8 +195,39 @@ fun InstallPrepareContent(
             tagDowngrade = tagDowngrade,
             textDowngrade = downgradeWarning,
             tagSignature = tagSignature,
+            tagSignatureMatch = tagSignatureMatch,
+            tagSignatureRotation = tagSignatureRotation,
+            tagSignatureRotationUnconfirmed = tagSignatureRotationUnconfirmed,
+            textSigNewInstall = sigNewInstall,
+            textSigMatch = sigMatch,
+            textSigRotationCompatible = sigRotationCompatible,
+            textSigCandidateRotationUnconfirmed = sigCandidateRotationUnconfirmed,
             textSigMismatch = sigMismatchWarning,
             textSigUnknown = sigUnknownWarning,
+            textSigAnalysisIssue = sigAnalysisIssue,
+            labelPendingSignature = labelPendingSignature,
+            labelInstalledSignature = labelInstalledSignature,
+            labelSignatureAnalysisIssues = labelSignatureAnalysisIssues,
+            labelSignatureVerificationFailedFiles = labelSignatureVerificationFailedFiles,
+            labelSignatureSplitMismatchFiles = labelSignatureSplitMismatchFiles,
+            labelSignatureDuplicateSplitNames = labelSignatureDuplicateSplitNames,
+            labelSignatureSchemes = labelSignatureSchemes,
+            labelSignatureCertificate = labelSignatureCertificate,
+            labelSignatureCurrentCertificate = labelSignatureCurrentCertificate,
+            labelSignatureCertificateLineage = labelSignatureCertificateLineage,
+            labelSignatureLineageCertificate = labelSignatureLineageCertificate,
+            labelSignatureCurrentMarker = labelSignatureCurrentMarker,
+            labelSignatureSha256 = labelSignatureSha256,
+            labelSignatureSha1 = labelSignatureSha1,
+            labelSignatureSubject = labelSignatureSubject,
+            labelSignatureIssuer = labelSignatureIssuer,
+            labelSignatureValidFrom = labelSignatureValidFrom,
+            labelSignatureValidUntil = labelSignatureValidUntil,
+            labelSignaturePublicKeyAlgorithm = labelSignaturePublicKeyAlgorithm,
+            labelSignatureAlgorithm = labelSignatureAlgorithm,
+            labelSignatureWarnings = labelSignatureWarnings,
+            labelSignatureErrors = labelSignatureErrors,
+            labelSignatureNoCertificates = labelSignatureNoCertificates,
             tagSdk = tagSdk,
             textSdkIncompatible = sdkIncompatibleWarning,
             tagArch32 = tagArch32,
@@ -194,11 +254,15 @@ fun InstallPrepareContent(
     }
 
     // Execute domain logic and map to UI state within the remember block
-    val (notices, buttonTextId) = remember(
+    val installStateResult = remember(
         currentPackage,
         entityToInstall,
         isSplitUpdateMode,
         containerType,
+        settings.checkAppSignature,
+        settings.showSignatureInfoOnMatch,
+        settings.showSignatureDetails,
+        settings.detectXposedModule,
         installStateUiMapper
     ) {
         // 1. Get pure domain state
@@ -209,15 +273,18 @@ fun InstallPrepareContent(
             isSplitUpdateMode = isSplitUpdateMode,
             containerType = containerType,
             systemArch = DeviceConfig.currentArchitecture,
-            systemSdkInt = Build.VERSION.SDK_INT
+            systemSdkInt = Build.VERSION.SDK_INT,
+            checkAppSignature = settings.checkAppSignature,
+            showSignatureInfoOnMatch = settings.showSignatureInfoOnMatch,
+            showSignatureDetails = settings.showSignatureDetails,
+            detectXposedModule = settings.detectXposedModule
         )
 
         // 2. Map to UI state
-        val uiState = installStateUiMapper.mapToUiState(domainState)
-
-        // 3. Destructure the data class components
-        Pair(uiState.notices, uiState.buttonTextId)
+        installStateUiMapper.mapToUiState(domainState)
     }
+    val notices = installStateResult.notices
+    val buttonTextId = installStateResult.buttonTextId
 
     LazyColumn(
         horizontalAlignment = Alignment.CenterHorizontally
@@ -225,10 +292,13 @@ fun InstallPrepareContent(
         item {
             AppInfoSlot(
                 appInfo = appInfo,
-                onIconClick = {
-                    // Trigger the share action using the already resolved primaryEntity
-                    if (settings.labTapIconToShare)
+                onIconClick = if (settings.labTapIconToShare) {
+                    {
+                        // Trigger the share action using the already resolved primaryEntity
                         viewModel.dispatch(InstallerViewAction.ShareApp(primaryEntity))
+                    }
+                } else {
+                    null
                 }
             )
         }
@@ -244,11 +314,7 @@ fun InstallPrepareContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 6.dp),
-                colors = CardColors(
-                    color = if (isDynamicColor) MiuixTheme.colorScheme.surfaceContainer else
-                        if (isDarkMode) miuixSheetCardColorDark else Color.White,
-                    contentColor = MiuixTheme.colorScheme.onSurface
-                )
+                colors = miuixSheetCardColors()
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -261,19 +327,22 @@ fun InstallPrepareContent(
                                 newValue = primaryEntity.versionName,
                                 oldValue = currentPackage.installedAppInfo?.versionName,
                                 isUninstalled = currentPackage.installedAppInfo?.isUninstalled ?: false,
-                                isArchived = currentPackage.installedAppInfo?.isArchived ?: false
+                                isArchived = currentPackage.installedAppInfo?.isArchived ?: false,
+                                hideIdenticalComparison = settings.hideIdenticalComparisons
                             )
                             AdaptiveInfoRow(
                                 labelResId = R.string.installer_version_code_label,
                                 newValue = primaryEntity.versionCode.toString(),
                                 oldValue = currentPackage.installedAppInfo?.versionCode?.toString(),
                                 isUninstalled = currentPackage.installedAppInfo?.isUninstalled ?: false,
-                                isArchived = currentPackage.installedAppInfo?.isArchived ?: false
+                                isArchived = currentPackage.installedAppInfo?.isArchived ?: false,
+                                hideIdenticalComparison = settings.hideIdenticalComparisons
                             )
                             SDKComparison(
                                 entityToInstall = primaryEntity,
                                 preInstallAppInfo = currentPackage.installedAppInfo,
-                                displaySDK = config.displaySdk
+                                displaySDK = config.displaySdk,
+                                hideIdenticalComparison = settings.hideIdenticalComparisons
                             )
 
                             AnimatedVisibility(visible = config.displaySize && primaryEntity.size > 0) {
@@ -284,7 +353,8 @@ fun InstallPrepareContent(
                                 AdaptiveInfoRow(
                                     labelResId = R.string.installer_package_size_label,
                                     newValue = newSizeStr,
-                                    oldValue = oldSizeStr
+                                    oldValue = oldSizeStr,
+                                    hideIdenticalComparison = settings.hideIdenticalComparisons
                                 )
                             }
 
@@ -308,15 +378,18 @@ fun InstallPrepareContent(
                         }
 
                         is AppEntity.ModuleEntity -> {
+                            val installedModuleInfo = currentPackage.installedModuleInfo
                             AdaptiveInfoRow(
                                 labelResId = R.string.installer_version_name_label,
                                 newValue = primaryEntity.version,
-                                oldValue = null
+                                oldValue = installedModuleInfo?.version,
+                                hideIdenticalComparison = settings.hideIdenticalComparisons
                             )
                             AdaptiveInfoRow(
                                 labelResId = R.string.installer_version_code_label,
                                 newValue = primaryEntity.versionCode.toString(),
-                                oldValue = null
+                                oldValue = installedModuleInfo?.versionCode?.toString(),
+                                hideIdenticalComparison = settings.hideIdenticalComparisons
                             )
                             AnimatedVisibility(visible = config.displaySdk) {
                                 AdaptiveInfoRow(
@@ -347,7 +420,8 @@ fun InstallPrepareContent(
                             SDKComparison(
                                 entityToInstall = primaryEntity,
                                 preInstallAppInfo = currentPackage.installedAppInfo,
-                                displaySDK = config.displaySdk
+                                displaySDK = config.displaySdk,
+                                hideIdenticalComparison = settings.hideIdenticalComparisons
                             )
 
                             // Size
@@ -377,11 +451,7 @@ fun InstallPrepareContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
-                    colors = CardColors(
-                        color = if (isDynamicColor) MiuixTheme.colorScheme.surfaceContainer else
-                            if (isDarkMode) miuixSheetCardColorDark else Color.White,
-                        contentColor = MiuixTheme.colorScheme.onSurface
-                    )
+                    colors = miuixSheetCardColors()
                 ) {
                     // Permissions List
                     if (rawBaseEntity?.permissions?.isNotEmpty() == true)
@@ -464,11 +534,7 @@ fun InstallPrepareContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
-                    colors = CardColors(
-                        color = if (isDynamicColor) MiuixTheme.colorScheme.surfaceContainer else
-                            if (isDarkMode) miuixSheetCardColorDark else Color.White,
-                        contentColor = MiuixTheme.colorScheme.onSurface
-                    )
+                    colors = miuixSheetCardColors()
                 ) {
                     if (settings.labShowFilePath) {
                         // Safely extract the source path
@@ -608,7 +674,8 @@ fun InstallPrepareContent(
 private fun SDKComparison(
     entityToInstall: AppEntity,
     preInstallAppInfo: InstalledAppInfo?,
-    displaySDK: Boolean
+    displaySDK: Boolean,
+    hideIdenticalComparison: Boolean
 ) {
     AnimatedVisibility(visible = displaySDK) {
         Column(
@@ -622,6 +689,7 @@ private fun SDKComparison(
                     newSdk = newTargetSdk,
                     oldSdk = preInstallAppInfo?.targetSdk?.toString(),
                     isArchived = preInstallAppInfo?.isArchived ?: false,
+                    hideIdenticalComparison = hideIdenticalComparison,
                     type = "target"
                 )
             }
@@ -633,6 +701,7 @@ private fun SDKComparison(
                     oldSdk = preInstallAppInfo?.minSdk?.toString(),
                     isUninstalled = preInstallAppInfo?.isUninstalled ?: false,
                     isArchived = preInstallAppInfo?.isArchived ?: false,
+                    hideIdenticalComparison = hideIdenticalComparison,
                     type = "min"
                 )
             }
@@ -647,11 +716,13 @@ private fun SdkInfoRow(
     oldSdk: String?,
     isUninstalled: Boolean = false,
     isArchived: Boolean = false,
+    hideIdenticalComparison: Boolean,
     type: String // "min" or "target"
 ) {
     val newSdkInt = newSdk.toIntOrNull()
     val oldSdkInt = oldSdk?.toIntOrNull()
-    val showComparison = oldSdkInt != null && newSdkInt != null && newSdkInt != oldSdkInt
+    val showComparison = oldSdkInt != null && newSdkInt != null &&
+            (!hideIdenticalComparison || newSdkInt != oldSdkInt)
 
     Row(
         modifier = Modifier.fillMaxWidth(),

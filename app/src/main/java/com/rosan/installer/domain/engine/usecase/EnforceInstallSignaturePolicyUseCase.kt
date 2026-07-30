@@ -4,19 +4,17 @@ package com.rosan.installer.domain.engine.usecase
 
 import android.content.Context
 import android.content.pm.PackageManager
-import com.rosan.installer.data.engine.parser.SignatureUtils
+import com.rosan.installer.data.engine.signature.InstalledPackageSignatureReader
+import com.rosan.installer.data.engine.signature.PendingApkSignatureAnalyzer
 import com.rosan.installer.data.policy.ManagedInstallPolicyProvider
 import com.rosan.installer.data.policy.ZipSignatureVerifier
 import com.rosan.installer.domain.engine.exception.InstallException
-import com.rosan.installer.domain.engine.model.AppEntity
-import com.rosan.installer.domain.engine.model.DataEntity
-import com.rosan.installer.domain.engine.model.InstallErrorType
-import com.rosan.installer.domain.engine.model.sourcePath
+import com.rosan.installer.domain.engine.model.error.InstallErrorType
+import com.rosan.installer.domain.engine.model.install.sourcePath
+import com.rosan.installer.domain.engine.model.packageinfo.AppEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.io.File
-import java.util.UUID
 
 /**
  * Enforces the managed install signature policy (delivered via managed configurations).
@@ -38,7 +36,11 @@ import java.util.UUID
  * When no policy is configured (unmanaged device / empty restriction), installation
  * is unrestricted.
  */
-class EnforceInstallSignaturePolicyUseCase(private val context: Context) {
+class EnforceInstallSignaturePolicyUseCase(
+    private val context: Context,
+    private val pendingApkSignatureAnalyzer: PendingApkSignatureAnalyzer,
+    private val installedPackageSignatureReader: InstalledPackageSignatureReader
+) {
 
     suspend operator fun invoke(apps: List<AppEntity>) = withContext(Dispatchers.IO) {
         val allowedHashes = ManagedInstallPolicyProvider.getAllowedSignatureHashes(context)
@@ -86,17 +88,17 @@ class EnforceInstallSignaturePolicyUseCase(private val context: Context) {
                     areContainersAuthorized(entities, allowedHashes, containerCache)
         }
 
-        // The installed app's signing certificate, for the genuine-update comparison.
-        val installedCertHash = if (installed) {
-            SignatureUtils.getInstalledAppSignatureHash(context, packageName)?.lowercase()
-        } else null
+        // The installed app's signing certificates, for the genuine-update comparison.
+        val installedCertHashes =
+            if (installed) resolveInstalledCertHashes(packageName) else emptySet()
 
         // Rules 1 + 3: every selected base APK must either be signed with an authorized
         // certificate, or be signed with the same certificate as the installed app.
         // An unresolvable signature never qualifies.
         val allBasesAuthorized = baseEntities.all { base ->
-            val hash = (base.signatureHash ?: resolveApkCertHash(base.data))?.lowercase()
-            hash != null && (hash in allowedHashes || (installedCertHash != null && hash == installedCertHash))
+            val hashes = resolveApkCertHashes(base)
+            hashes.isNotEmpty() &&
+                    hashes.all { it in allowedHashes || it in installedCertHashes }
         }
         if (allBasesAuthorized) {
             Timber.d("Policy: $packageName allowed by authorized or installed-matching APK signature")
@@ -135,27 +137,24 @@ class EnforceInstallSignaturePolicyUseCase(private val context: Context) {
     }
 
     /**
-     * Computes the signing certificate SHA-256 of an APK whose parsed entity carries
-     * no precomputed hash. Non-file sources are staged to the cache dir first, since
-     * PackageManager can only parse real file paths.
+     * Signer certificate SHA-256 hashes of the already installed app, used for the
+     * genuine-update comparison. Empty when the signature cannot be read.
      */
-    private fun resolveApkCertHash(data: DataEntity): String? {
-        if (data is DataEntity.FileEntity && File(data.path).isFile) {
-            return SignatureUtils.getApkSignatureHash(context, data.path)
-        }
+    private fun resolveInstalledCertHashes(packageName: String): Set<String> {
+        val info = installedPackageSignatureReader.read(packageName) ?: return emptySet()
+        return info.signerSha256Set.mapTo(mutableSetOf()) { it.lowercase() }
+    }
 
-        val tempFile = File(context.cacheDir, "sig_check_${UUID.randomUUID()}.apk")
-        return try {
-            val input = data.getInputStreamWhileNotEmpty() ?: return null
-            input.use { stream ->
-                tempFile.outputStream().use { output -> stream.copyTo(output) }
-            }
-            SignatureUtils.getApkSignatureHash(context, tempFile.absolutePath)
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to stage APK for signature check")
-            null
-        } finally {
-            tempFile.delete()
-        }
+    /**
+     * Signer certificate SHA-256 hashes of an incoming base APK. Reuses the analysis
+     * produced while parsing when available, otherwise runs apksig over the entity's
+     * data (staging non-file sources into the cache dir). Returns an empty set when the
+     * APK signature cannot be verified, so an unverifiable APK never satisfies the policy.
+     */
+    private fun resolveApkCertHashes(base: AppEntity.BaseEntity): Set<String> {
+        val info = base.signatureInfo
+            ?: pendingApkSignatureAnalyzer.analyze(base.data, context.cacheDir.absolutePath)
+        if (info == null || !info.verified) return emptySet()
+        return info.signerSha256Set.mapTo(mutableSetOf()) { it.lowercase() }
     }
 }

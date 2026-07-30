@@ -4,11 +4,10 @@ package com.rosan.installer.ui.page.main.settings.preferred.installer
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.rosan.installer.domain.settings.model.BiometricAuthMode
+import com.rosan.installer.domain.settings.model.config.BiometricAuthMode
 import com.rosan.installer.domain.settings.provider.SystemEnvProvider
 import com.rosan.installer.domain.settings.repository.AppSettingsRepository
 import com.rosan.installer.domain.settings.repository.BooleanSetting
-import com.rosan.installer.domain.settings.repository.IntSetting
 import com.rosan.installer.domain.settings.repository.NamedPackageListSetting
 import com.rosan.installer.domain.settings.repository.SharedUidListSetting
 import com.rosan.installer.domain.settings.repository.StringSetting
@@ -33,9 +32,14 @@ class InstallerSettingsViewModel(
         InstallerSettingsState(
             authorizer = prefs.authorizer,
             alwaysUseRootInSystem = prefs.alwaysUseRootInSystem,
-            dhizukuAutoCloseCountDown = prefs.dhizukuAutoCloseCountDown,
+            closeSessionCountDown = prefs.closeSessionCountDown,
             installerRequireBiometricAuth = prefs.installerRequireBiometricAuth,
             showOPPOSpecial = prefs.showOPPOSpecial,
+            checkAppSignature = prefs.checkAppSignature,
+            showSignatureInfoOnMatch = prefs.showSignatureInfoOnMatch,
+            showSignatureDetails = prefs.showSignatureDetails,
+            detectXposedModule = prefs.detectXposedModule,
+            quickOpenLSPosed = prefs.quickOpenLSPosed,
             managedInstallerPackages = prefs.managedInstallerPackages,
             managedBlacklistPackages = prefs.managedBlacklistPackages,
             managedSharedUserIdBlacklist = prefs.managedSharedUserIdBlacklist,
@@ -56,23 +60,47 @@ class InstallerSettingsViewModel(
                 )
             }
 
-            is InstallerSettingsAction.ChangeAlwaysUseRootInSystem -> viewModelScope.launch {
-                updateSetting(
-                    BooleanSetting.AlwaysUseRootInSystem,
-                    action.alwaysUseRootInSystem
-                )
-            }
-
-            is InstallerSettingsAction.ChangeDhizukuAutoCloseCountDown -> {
-                if (action.countDown in 1..10) viewModelScope.launch { updateSetting(IntSetting.DialogAutoCloseCountdown, action.countDown) }
-            }
-
             is InstallerSettingsAction.ChangeBiometricAuth -> changeBiometricAuth(action.mode)
 
             is InstallerSettingsAction.ChangeShowOPPOSpecial -> viewModelScope.launch {
                 updateSetting(
                     BooleanSetting.DialogShowOppoSpecial,
                     action.show
+                )
+            }
+
+            is InstallerSettingsAction.ChangeCheckAppSignature -> viewModelScope.launch {
+                updateSetting(
+                    BooleanSetting.CheckAppSignature,
+                    action.check
+                )
+            }
+
+            is InstallerSettingsAction.ChangeShowSignatureInfoOnMatch -> viewModelScope.launch {
+                updateSetting(
+                    BooleanSetting.ShowSignatureInfoOnMatch,
+                    action.show
+                )
+            }
+
+            is InstallerSettingsAction.ChangeShowSignatureDetails -> viewModelScope.launch {
+                updateSetting(
+                    BooleanSetting.ShowSignatureDetails,
+                    action.show
+                )
+            }
+
+            is InstallerSettingsAction.ChangeDetectXposedModule -> viewModelScope.launch {
+                updateSetting(
+                    BooleanSetting.DetectXposedModule,
+                    action.detect
+                )
+            }
+
+            is InstallerSettingsAction.ChangeQuickOpenLSPosed -> viewModelScope.launch {
+                updateSetting(
+                    BooleanSetting.QuickOpenLSPosed,
+                    action.open
                 )
             }
 
@@ -106,6 +134,30 @@ class InstallerSettingsViewModel(
 
             is InstallerSettingsAction.RemoveManagedSharedUserIdBlacklist -> viewModelScope.launch {
                 manageSharedUidListUseCase.removeUid(SharedUidListSetting.ManagedSharedUserIdBlacklist, action.uid)
+            }
+
+            is InstallerSettingsAction.MoveManagedInstallerPackage -> viewModelScope.launch {
+                managePackageListUseCase.movePackage(NamedPackageListSetting.ManagedInstallerPackages, action.fromIndex, action.toIndex)
+            }
+
+            is InstallerSettingsAction.MoveManagedBlacklistPackage -> viewModelScope.launch {
+                managePackageListUseCase.movePackage(NamedPackageListSetting.ManagedBlacklistPackages, action.fromIndex, action.toIndex)
+            }
+
+            is InstallerSettingsAction.MoveManagedSharedUserIdBlacklist -> viewModelScope.launch {
+                manageSharedUidListUseCase.moveUid(
+                    SharedUidListSetting.ManagedSharedUserIdBlacklist,
+                    action.fromIndex,
+                    action.toIndex
+                )
+            }
+
+            is InstallerSettingsAction.MoveManagedSharedUserIdExemptedPackages -> viewModelScope.launch {
+                managePackageListUseCase.movePackage(
+                    NamedPackageListSetting.ManagedSharedUserIdExemptedPackages,
+                    action.fromIndex,
+                    action.toIndex
+                )
             }
         }
     }
