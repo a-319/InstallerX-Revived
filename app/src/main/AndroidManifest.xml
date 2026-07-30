@@ -41,13 +41,19 @@
 
     <uses-permission android:name="com.rosan.dhizuku.permission.API" />
 
+    <!-- com.rosan.dhizuku.api: Dhizuku-API 2.5.4 declares minSdk 26, but its code has no
+         API 26 dependency - 2.5.4 replaced the last SDK_INT branch with AndroidX
+         BundleCompat (2.5.3 declared minSdk 19 with an identical public API). Whether
+         Dhizuku is usable therefore depends on the installed Dhizuku server, not on the
+         client library. -->
     <uses-sdk tools:overrideLibrary="
         rikka.shizuku.api,
         rikka.shizuku.provider,
         rikka.shizuku.shared,
         rikka.shizuku.aidl,
         com.xzakota.hyper.notification.focus,
-        top.yukonga.miuix.kmp.blur
+        top.yukonga.miuix.kmp.blur,
+        com.rosan.dhizuku.api
     " />
 
     <application

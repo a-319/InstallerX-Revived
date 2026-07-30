@@ -270,7 +270,7 @@ class InstallerService : Service() {
             sessionScopes.values.forEach { it.cancel() }
             sessionScopes.clear()
         }
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 

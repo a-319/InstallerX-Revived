@@ -44,7 +44,11 @@ class NoneAppInstallerRepoImpl(
     ) {
         val allowInstallWithoutUserAction = config.allowInstallWithoutUserAction
         val result = runCatching {
-            if (!context.packageManager.canRequestPackageInstalls()) {
+            // Below Android 8.0 "install unknown apps" is a global setting handled
+            // by the system install confirmation, not a per-app permission.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                !context.packageManager.canRequestPackageInstalls()
+            ) {
                 val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                     data = "package:${context.packageName}".toUri()
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

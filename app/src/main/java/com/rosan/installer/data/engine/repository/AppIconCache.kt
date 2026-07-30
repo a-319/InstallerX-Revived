@@ -11,6 +11,7 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.drawable.AdaptiveIconDrawable
+import android.os.Build
 import androidx.collection.LruCache
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -71,7 +72,8 @@ object AppIconCache {
 
         val loader = appIconLoaders.getOrPut(size) {
             // Determine if the icon should be shrunk based on AdaptiveIcon compatibility
-            val shrink = context.applicationInfo.loadIcon(context.packageManager) is AdaptiveIconDrawable
+            val shrink = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                    context.applicationInfo.loadIcon(context.packageManager) is AdaptiveIconDrawable
             AppIconLoader(size, shrink, context)
         }
 

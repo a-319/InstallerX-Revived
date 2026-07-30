@@ -65,7 +65,7 @@ android {
         applicationId = project.findProperty("APP_ID") as String?
             ?: "lessevil.installer"
         namespace = "com.rosan.installer"
-        minSdk = 26
+        minSdk = 23
         targetSdk = 37
         // Version control:
         // - versionName is auto-generated as "yy.MM" by default,

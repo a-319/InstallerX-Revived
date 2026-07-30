@@ -7,8 +7,12 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
 import android.service.quicksettings.TileService
+import androidx.annotation.RequiresApi
 import com.rosan.installer.ui.activity.SettingsActivity
 
+// Quick Settings tiles exist since Android 7.0; the system never
+// instantiates this service on older versions.
+@RequiresApi(Build.VERSION_CODES.N)
 class SettingsTileService : TileService() {
 
     override fun onClick() {

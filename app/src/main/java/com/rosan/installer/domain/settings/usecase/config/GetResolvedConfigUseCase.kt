@@ -12,6 +12,7 @@ import com.rosan.installer.domain.settings.repository.BooleanSetting
 import com.rosan.installer.domain.settings.repository.ConfigRepository
 import com.rosan.installer.domain.settings.repository.IntSetting
 import com.rosan.installer.domain.settings.repository.StringSetting
+import com.rosan.installer.util.pm.getPackageUidCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -42,11 +43,11 @@ class GetResolvedConfigUseCase(
         val isRequesterEnabled = appSettingsRepo.getBoolean(BooleanSetting.LabSetInstallRequester).first()
         if (isRequesterEnabled) {
             var targetUid: Int? = model.installRequester?.let { requesterPkg ->
-                runCatching { context.packageManager.getPackageUid(requesterPkg, 0) }.getOrNull()
+                runCatching { context.packageManager.getPackageUidCompat(requesterPkg, 0) }.getOrNull()
             }
 
             if (targetUid == null && packageName != null) {
-                targetUid = runCatching { context.packageManager.getPackageUid(packageName, 0) }.getOrNull()
+                targetUid = runCatching { context.packageManager.getPackageUidCompat(packageName, 0) }.getOrNull()
             }
             model = model.copy(callingFromUid = targetUid)
         }

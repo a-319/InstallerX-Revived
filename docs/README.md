@@ -37,7 +37,7 @@ Compared to stock installers, **InstallerX Revived** offers more installation fe
 ## Supported Versions
 
 - **Full support:** Android SDK 34 - 36.1 (Android 14 - 16)
-- **Limited support:** Android SDK 26 - 33 (Android 8.0 - 13) (please report issues)
+- **Limited support:** Android SDK 23 - 33 (Android 6.0 - 13) (please report issues)
 
 ## Key Changes and Features
 
