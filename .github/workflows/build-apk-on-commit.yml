@@ -4,7 +4,7 @@ on:
   push:
 
 permissions:
-  contents: read
+  contents: write
   packages: read
 
 jobs:
@@ -41,18 +41,36 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./gradlew assembleOnlinePreviewDebug assembleOfflinePreviewDebug -PAPP_ID="lessevil.installer"
 
-      - name: Upload Online APK
+      - name: Prepare stable latest file names
+        run: |
+          cp app/build/outputs/apk/onlinePreview/debug/*.apk app/build/outputs/apk/onlinePreview/debug/InstallerX-Revived-online-latest.apk
+          cp app/build/outputs/apk/offlinePreview/debug/*.apk app/build/outputs/apk/offlinePreview/debug/InstallerX-Revived-offline-latest.apk
+
+      - name: Upload run artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: commit-online-apk-${{ github.sha }}
-          path: app/build/outputs/apk/onlinePreview/debug/*.apk
+          name: commit-apks-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/onlinePreview/debug/InstallerX-Revived-online-latest.apk
+            app/build/outputs/apk/offlinePreview/debug/InstallerX-Revived-offline-latest.apk
           retention-days: 7
           archive: false
 
-      - name: Upload Offline APK
-        uses: actions/upload-artifact@v7
+      - name: Publish/Update public latest APK links
+        uses: softprops/action-gh-release@v3
         with:
-          name: commit-offline-apk-${{ github.sha }}
-          path: app/build/outputs/apk/offlinePreview/debug/*.apk
-          retention-days: 7
-          archive: false
+          tag_name: commit-apk-latest
+          name: Latest Commit APKs
+          target_commitish: ${{ github.sha }}
+          body: |
+            Auto-updated APKs from the latest commit.
+
+            Public fixed links:
+            - https://github.com/${{ github.repository }}/releases/download/commit-apk-latest/InstallerX-Revived-online-latest.apk
+            - https://github.com/${{ github.repository }}/releases/download/commit-apk-latest/InstallerX-Revived-offline-latest.apk
+          prerelease: true
+          make_latest: false
+          files: |
+            app/build/outputs/apk/onlinePreview/debug/InstallerX-Revived-online-latest.apk
+            app/build/outputs/apk/offlinePreview/debug/InstallerX-Revived-offline-latest.apk
+          overwrite_files: true
