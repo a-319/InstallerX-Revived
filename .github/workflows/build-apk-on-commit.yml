@@ -35,7 +35,7 @@ jobs:
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew assembleOnlinePreviewDebug assembleOfflinePreviewDebug -PAPP_ID="com.rosan.installer.x.revived.test"
+        run: ./gradlew assembleOnlinePreviewDebug assembleOfflinePreviewDebug -PAPP_ID="lessevil.installer"
 
       - name: Upload Online APK
         uses: actions/upload-artifact@v7
